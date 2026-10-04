@@ -281,7 +281,7 @@ tbody tr.late:hover td{filter:brightness(.97)}
    גלעם — בקרת הזמנות רכש. קורא את דוח "הזמנות רכש פתוחות"
    של Priority, מנרמל אותו, ומנתח אותו בדפדפן בלבד.
    ============================================================ */
-(function(){
+window.__galamApp=function(){
 "use strict";
 
 /* ---------- utils ---------- */
@@ -298,7 +298,8 @@ const todayISO=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMo
 const dayDiff=(a,b)=>Math.round((Date.parse(b+'T00:00:00Z')-Date.parse(a+'T00:00:00Z'))/864e5);
 const HEB_MON=['ינו','פבר','מרץ','אפר','מאי','יונ','יול','אוג','ספט','אוק','נוב','דצמ'];
 const monLabel=k=>{const[y,m]=k.split('-');return HEB_MON[+m-1]+" '"+y.slice(2);};
-function store(k,v){try{if(v===undefined)return JSON.parse(localStorage.getItem('galam.'+k));localStorage.setItem('galam.'+k,JSON.stringify(v));}catch(e){return null;}}
+function store(k,v){try{if(v===undefined)return JSON.parse(localStorage.getItem('galam.'+k));localStorage.setItem('galam.'+k,JSON.stringify(v));}catch(e){}
+  if(v!==undefined)window.__galamSync&&window.__galamSync(k,v);return null;}
 
 function toast(msg,ms){
   const t=el('div','toast',esc(msg));document.body.appendChild(t);
@@ -2015,6 +2016,7 @@ $('#btnReset').onclick=()=>{
   S.rows=derive(fromSeed());S.label=seed.source+' · '+dstr(seed.snapshot);S.custom=false;
   S.d=newFilters();S.f=newFilters();S.dirty=false;S.limit=150;
   try{localStorage.removeItem('galam.data');}catch(e){}
+  window.__galamSync&&window.__galamSync('data',null);
   toast('הנתונים נוקו');render();
 };
 const theme=store('theme'); if(theme)document.documentElement.dataset.theme=theme;
@@ -2028,6 +2030,65 @@ $('#btnTheme').onclick=()=>{
 }));
 
 render();
+};
+</script>
+<script>
+/* ---------- סנכרון עם מסד הנתונים (Vercel + Postgres) ----------
+   בעלייה: טוען את כל הנתונים מ-/api/store לזיכרון הדפדפן ואז מפעיל את המערכת.
+   כל שמירה נשלחת גם לשרת. בלי שרת (קובץ מקומי) — עובד מהדפדפן בלבד. */
+(function(){
+"use strict";
+const API='/api/store', SYNC=['data','supdata','spenddata','supmeta','crit','ok'];
+const ls={get:k=>{try{return localStorage.getItem(k);}catch(e){return null;}},
+          set:(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}},
+          del:k=>{try{localStorage.removeItem(k);}catch(e){}}};
+let pass=ls.get('galam.__pass')||'', online=false, started=false;
+const timers={};
+function note(msg){const t=document.createElement('div');t.className='toast';t.textContent=msg;
+  document.body.appendChild(t);setTimeout(()=>t.remove(),4200);}
+function send(k,v){
+  return fetch(API+'?key='+encodeURIComponent(k),{method:v==null?'DELETE':'PUT',
+    headers:{'Content-Type':'application/json','x-app-key':pass},body:v==null?undefined:JSON.stringify(v)})
+    .then(r=>{if(!r.ok)throw new Error(r.status===413?'הקובץ גדול מדי לשמירה בשרת':'שגיאת שרת '+r.status);})
+    .catch(e=>note('השמירה למסד הנתונים נכשלה: '+e.message));
+}
+window.__galamSync=(k,v)=>{
+  if(!online||SYNC.indexOf(k)<0)return;
+  clearTimeout(timers[k]);timers[k]=setTimeout(()=>send(k,v),600);
+};
+function start(){if(started)return;started=true;window.__galamApp();}
+function login(msg){
+  const w=document.createElement('div');
+  w.style.cssText='position:fixed;inset:0;background:var(--paper);z-index:100;display:flex;align-items:center;justify-content:center;padding:16px';
+  w.innerHTML='<form class="box box-p" style="width:min(360px,100%);display:flex;flex-direction:column;gap:10px">'+
+    '<h2 style="font-size:18px">מערכת לניהול רכש גלעם</h2>'+
+    '<label class="flab" for="gpw">סיסמת כניסה</label>'+
+    '<input type="text" id="gpw" autocomplete="current-password" style="-webkit-text-security:disc" required>'+
+    '<div class="note" id="gmsg" style="color:var(--red);margin:0"></div>'+
+    '<button class="btn btn-solid" type="submit">כניסה</button></form>';
+  document.body.appendChild(w);
+  w.querySelector('#gmsg').textContent=msg||'';
+  const i=w.querySelector('#gpw');i.focus();
+  w.querySelector('form').onsubmit=e=>{e.preventDefault();pass=i.value;ls.set('galam.__pass',pass);w.remove();boot();};
+}
+function boot(){
+  fetch(API,{headers:{'x-app-key':pass}}).then(r=>{
+    if(r.status===401){login(pass?'סיסמה שגויה':'');return null;}
+    if(!r.ok)throw new Error('status '+r.status);
+    return r.json();
+  }).then(remote=>{
+    if(!remote)return;
+    online=true;
+    const first=!Object.keys(remote).length;  /* מסד ריק — מעלים את מה שכבר שמור בדפדפן */
+    SYNC.forEach(k=>{
+      if(remote[k])ls.set('galam.'+k,JSON.stringify(remote[k].value));
+      else if(first){const loc=ls.get('galam.'+k);if(loc)send(k,JSON.parse(loc));}
+      else ls.del('galam.'+k);
+    });
+    start();
+  }).catch(()=>{start();note('אין חיבור למסד הנתונים — הנתונים נשמרים בדפדפן בלבד');});
+}
+if(location.protocol==='file:')start();else boot();
 })();
 </script>
 </body>
