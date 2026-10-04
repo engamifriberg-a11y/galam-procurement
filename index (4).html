@@ -1,0 +1,2034 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>גלעם · בקרת הזמנות רכש</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@400;500;700&family=Rubik:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --paper:#EBECE7; --card:#F7F8F4; --sunk:#E2E4DC;
+  --ink:#1E2127; --steel:#656C74; --faint:#8E959C; --line:#D2D5CC; --hair:#C3C7BC;
+  --brand:#4E8C22; --brand-pure:#78BC41;
+  --amber:#9A6B06; --amber-bg:#F2E4C2;
+  --red:#A3221A; --red-bg:#F3D9D5;
+  --moss:#416F1C; --moss-bg:#E1EFD2;
+  --sea:#27506F; --sea-bg:#D8E3EC;
+  --box-sizing:border-box;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#15171B; --card:#1C1F24; --sunk:#111317;
+    --ink:#E7E9E3; --steel:#949BA3; --faint:#6E757D; --line:#2B2F35; --hair:#373C43;
+    --brand:#8CCB58; --brand-pure:#78BC41;
+    --amber:#D9A227; --amber-bg:#3A2E12;
+    --red:#E56A5C; --red-bg:#3C1E1A;
+    --moss:#8CCB58; --moss-bg:#1E2E14;
+    --sea:#7EAEDC; --sea-bg:#152635;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#15171B; --card:#1C1F24; --sunk:#111317;
+  --ink:#E7E9E3; --steel:#949BA3; --faint:#6E757D; --line:#2B2F35; --hair:#373C43;
+  --brand:#8CCB58; --brand-pure:#78BC41;
+  --amber:#D9A227; --amber-bg:#3A2E12;
+  --red:#E56A5C; --red-bg:#3C1E1A;
+  --moss:#8CCB58; --moss-bg:#1E2E14;
+  --sea:#7EAEDC; --sea-bg:#152635;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px);-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:"Rubik","Segoe UI",system-ui,-apple-system,"Arial Hebrew",sans-serif;
+  font-weight:400; font-size:15px; line-height:1.5;
+  font-variant-numeric:tabular-nums lining-nums;
+}
+h1,h2,h3{margin:0;font-weight:500}
+button{font:inherit;color:inherit}
+.num{font-variant-numeric:tabular-nums lining-nums;direction:ltr;unicode-bidi:plaintext;display:inline-block}
+
+/* ---------- masthead ---------- */
+.mast{background:var(--ink);color:var(--paper);padding:calc(14px + env(safe-area-inset-top,0px)) 20px 14px;}
+.mast-in{max-width:1480px;margin:0 auto;display:flex;align-items:flex-end;gap:22px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:13px;line-height:1}
+.logo{height:31px;width:auto;display:block}
+.brand-t{font-family:"Frank Ruhl Libre",Georgia,serif;font-size:23px;font-weight:500;color:var(--paper);
+  border-inline-start:1px solid #4A4F54;padding-inline-start:13px;letter-spacing:-.01em}
+.modes{display:flex;gap:0;border:1px solid #4A4F54;border-radius:2px;overflow:hidden}
+.mode{background:transparent;border:0;padding:7px 16px;cursor:pointer;color:#A9AEA4;font-size:13.5px;white-space:nowrap}
+.mode:hover{background:#2C3137;color:var(--paper)}
+.mode[aria-pressed="true"]{background:var(--brand);color:#0E1A06;font-weight:500}
+footer.site{border-top:1px solid var(--line);background:var(--card);margin-top:14px;
+  padding:18px 20px calc(18px + env(safe-area-inset-bottom,0px))}
+footer.site .fin{max-width:1480px;margin:0 auto;display:flex;gap:14px;flex-wrap:wrap;align-items:center;
+  font-size:12.5px;color:var(--steel)}
+footer.site .cr{color:var(--ink)}
+footer.site .sep{color:var(--hair)}
+.mast-meta{font-size:12.5px;color:#A9AEA4;line-height:1.45;flex:1 1 220px}
+.mast-meta b{color:var(--paper);font-weight:500}
+.mast-act{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btn{background:transparent;border:1px solid var(--hair);color:inherit;padding:7px 14px;border-radius:2px;cursor:pointer;font-size:13.5px;transition:background .12s,border-color .12s}
+.btn:hover{background:rgba(127,127,127,.14)}
+.btn:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.mast .btn{border-color:#4A4F54;color:var(--paper)}
+.mast .btn:hover{background:#2C3137}
+.btn-solid{background:var(--brand);border-color:var(--brand);color:#F3FAEC;font-weight:500}
+.mast .btn-solid{color:#F3FAEC}
+.btn-solid:hover{filter:brightness(1.08);background:var(--amber)}
+.btn-sm{padding:4px 10px;font-size:12.5px}
+
+/* ---------- instrument strip ---------- */
+.strip{max-width:1480px;margin:0 auto;padding:0 20px;display:flex;flex-wrap:wrap;
+  border-bottom:1px solid var(--line)}
+.gauge{flex:1 1 150px;padding:16px 18px 15px;border-inline-start:1px solid var(--line)}
+.gauge:first-child{border-inline-start:0;padding-inline-start:0}
+.gauge-k{font-size:11.5px;color:var(--steel);letter-spacing:.01em}
+.gauge-v{font-family:"Frank Ruhl Libre",Georgia,serif;font-size:31px;font-weight:500;line-height:1.1;margin-top:3px}
+.gauge-s{font-size:11.5px;color:var(--faint);margin-top:2px}
+.gauge.alarm .gauge-v{color:var(--red)}
+.gauge.warn .gauge-v{color:var(--amber)}
+
+/* ---------- tabs ---------- */
+.rail{position:sticky;top:env(safe-area-inset-top,0px);z-index:30;background:var(--paper);border-bottom:1px solid var(--line)}
+.rail-in{max-width:1480px;margin:0 auto;padding:0 20px;display:flex;gap:2px;overflow-x:auto;scrollbar-width:thin}
+.tab{background:none;border:0;border-bottom:2px solid transparent;padding:12px 14px;cursor:pointer;color:var(--steel);white-space:nowrap;font-size:14.5px}
+.tab:hover{color:var(--ink)}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--brand);font-weight:500}
+.tab .cnt{font-size:11.5px;color:var(--faint);margin-inline-start:5px}
+.tab[aria-selected="true"] .cnt{color:var(--brand)}
+
+.suprow{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;text-align:start;
+  background:none;border:0;border-bottom:1px solid var(--line);padding:9px 12px;cursor:pointer}
+.suprow:hover{background:var(--sunk)}
+.suprow.on{background:var(--moss-bg);box-shadow:inset 3px 0 0 var(--brand)}
+.suprow .sname{font-size:13.5px}
+.suprow .smeta{font-size:11.5px;color:var(--steel)}
+.kvgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:1px;background:var(--line);
+  border:1px solid var(--line);border-radius:2px;margin-top:11px;overflow:hidden}
+.kv{background:var(--card);padding:7px 10px;display:flex;flex-direction:column;gap:1px;min-width:0}
+.kvk{font-size:11px;color:var(--faint)}
+.kvv{font-size:13px;word-break:break-word}
+.clickrow{cursor:pointer}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:11px}
+.fgrid label{display:block}
+.rail-ref{display:flex;align-items:center;padding-inline-start:10px}
+.refresh{white-space:nowrap}
+.refresh.pulse{box-shadow:0 0 0 0 rgba(78,140,34,.55);animation:pz 1.9s ease-out infinite}
+.refresh.pulse::after{content:" •"}
+@keyframes pz{0%{box-shadow:0 0 0 0 rgba(78,140,34,.5)}70%{box-shadow:0 0 0 7px rgba(78,140,34,0)}100%{box-shadow:0 0 0 0 rgba(78,140,34,0)}}
+main{max-width:1480px;margin:0 auto;padding:22px 20px 60px}
+.panel{display:none}
+.panel.on{display:block}
+.sec{margin-bottom:26px}
+.sec-h{display:flex;align-items:baseline;gap:12px;margin-bottom:10px;flex-wrap:wrap}
+.sec-h h2{font-size:17px;font-weight:500}
+.sec-h p{margin:0;font-size:12.5px;color:var(--steel);flex:1 1 200px}
+.box{background:var(--card);border:1px solid var(--line);border-radius:3px}
+.box-p{padding:14px 16px}
+
+/* ---------- filters ---------- */
+.filters{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;padding:13px 16px;background:var(--card);border:1px solid var(--line);border-radius:3px}
+.fgrp{min-width:150px}
+.flab{font-size:11.5px;color:var(--steel);margin-bottom:5px;display:block}
+input[type=text],input[type=search],select{font:inherit;font-size:13.5px;background:var(--paper);border:1px solid var(--hair);color:var(--ink);border-radius:2px;padding:6px 9px;width:100%}
+input:focus,select:focus{outline:2px solid var(--brand);outline-offset:-1px;border-color:var(--brand)}
+.chips{display:flex;flex-wrap:wrap;gap:5px;max-width:560px}
+.chip{border:1px solid var(--hair);background:var(--paper);border-radius:2px;padding:4px 9px;font-size:12.5px;cursor:pointer;color:var(--steel);white-space:nowrap}
+.chip:hover{border-color:var(--steel)}
+.chip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.chip.bad[aria-pressed="true"]{background:var(--red);border-color:var(--red);color:#fff}
+.chip .n{opacity:.6;font-size:11px;margin-inline-start:4px}
+label.ck{display:flex;align-items:center;gap:7px;font-size:13.5px;cursor:pointer;padding-top:4px}
+label.ck input{accent-color:var(--brand);width:15px;height:15px}
+
+/* ---------- table ---------- */
+.tscroll{overflow-x:auto;border:1px solid var(--line);border-radius:3px;background:var(--card)}
+table{border-collapse:collapse;width:100%;font-size:13px;min-width:940px}
+thead th{position:sticky;top:0;background:var(--sunk);text-align:start;font-weight:500;color:var(--steel);
+  padding:9px 10px;border-bottom:1px solid var(--hair);white-space:nowrap;cursor:pointer;font-size:12px;z-index:2}
+thead th:hover{color:var(--ink)}
+thead th .ar{opacity:.5;font-size:10px}
+tbody td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+tbody tr:hover{background:var(--sunk)}
+tbody tr.late td{background:var(--red-bg)}
+tbody tr.late:hover td{filter:brightness(.97)}
+.desc{max-width:300px;min-width:170px}
+.ta-e{text-align:end}
+.sub{font-size:11.5px;color:var(--faint);display:block}
+.tag{display:inline-block;font-size:11px;padding:1.5px 7px;border-radius:2px;white-space:nowrap;border:1px solid transparent}
+.t-red{background:var(--red-bg);color:var(--red);border-color:var(--red)}
+.t-amb{background:var(--amber-bg);color:var(--amber);border-color:var(--amber)}
+.t-moss{background:var(--moss-bg);color:var(--moss);border-color:var(--moss)}
+.t-sea{background:var(--sea-bg);color:var(--sea);border-color:var(--sea)}
+.t-mute{background:var(--sunk);color:var(--steel);border-color:var(--hair)}
+.more{text-align:center;padding:12px}
+.empty{padding:34px 18px;text-align:center;color:var(--steel);font-size:14px}
+.empty b{display:block;color:var(--ink);font-weight:500;margin-bottom:4px;font-size:15px}
+
+/* ---------- charts ---------- */
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:16px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+.chart-t{font-size:14px;font-weight:500;margin-bottom:2px}
+.chart-s{font-size:11.5px;color:var(--faint);margin-bottom:12px}
+.legend{display:flex;flex-direction:column;gap:6px;font-size:12.5px;min-width:160px}
+.legend div{display:flex;align-items:center;gap:7px}
+.sw{width:10px;height:10px;border-radius:1px;flex:none}
+.legend .lv{margin-inline-start:auto;color:var(--steel);font-variant-numeric:tabular-nums}
+.bars{display:flex;flex-direction:column;gap:9px}
+.bar-row{font-size:12.5px}
+.bar-top{display:flex;justify-content:space-between;gap:10px;margin-bottom:3px}
+.bar-top span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar-track{height:7px;background:var(--sunk);border-radius:1px;overflow:hidden}
+.bar-fill{height:100%;background:var(--sea)}
+.bar-fill.red{background:var(--red)}
+.bar-fill.amb{background:var(--amber)}
+.bar-fill.moss{background:var(--moss)}
+
+/* ---------- recommendations ---------- */
+.rec{border:1px solid var(--line);border-radius:3px;background:var(--card);margin-bottom:14px;overflow:hidden}
+.rec-h{display:flex;gap:12px;align-items:baseline;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--sunk);flex-wrap:wrap}
+.rec-h h3{font-size:15px}
+.rec-h .why{font-size:12px;color:var(--steel);flex:1 1 180px}
+.rec-h .cnt{font-size:12.5px;color:var(--steel)}
+.rec-b{padding:0}
+.rec-b table{min-width:620px}
+.sev{width:3px;align-self:stretch;flex:none}
+.rec.sev-red{border-inline-start:3px solid var(--red)}
+.rec.sev-amb{border-inline-start:3px solid var(--amber)}
+.rec.sev-sea{border-inline-start:3px solid var(--sea)}
+
+.drop{border:1.5px dashed var(--hair);border-radius:3px;padding:26px 18px;text-align:center;color:var(--steel);font-size:13.5px;background:var(--card)}
+.drop.hot{border-color:var(--brand);background:var(--moss-bg);color:var(--ink)}
+.note{font-size:12px;color:var(--faint);margin-top:8px;line-height:1.55}
+.toast{position:fixed;inset-block-end:calc(18px + env(safe-area-inset-bottom,0px));inset-inline-start:18px;
+  background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:3px;font-size:13.5px;z-index:90;
+  box-shadow:0 4px 18px rgba(0,0,0,.22);max-width:min(420px,88vw)}
+.hide{display:none!important}
+@media (max-width:620px){
+  .brand{font-size:22px}.gauge-v{font-size:25px}.gauge{flex-basis:46%;padding:13px 12px}
+  .gauge:nth-child(odd){border-inline-start:0;padding-inline-start:0}
+  main{padding:16px 14px 50px}.strip{padding:0 14px}.rail-in{padding:0 14px}.mast{padding-inline:14px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<header class="mast">
+  <div class="mast-in">
+    <div class="brand"><img src="data:image/png;base64,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" alt="Galam" class="logo"><span class="brand-t">מערכת לניהול רכש גלעם</span></div>
+    <div class="mast-meta" id="meta"></div>
+    <div class="modes" id="modes" role="group" aria-label="תחום ניהול">
+      <button class="mode" data-m="po">ניהול הזמנות</button>
+      <button class="mode" data-m="sup">ניהול ספקים</button>
+      <button class="mode" data-m="spend">ניתוח ספנד</button>
+    </div>
+    <div class="mast-act">
+      <button class="btn btn-solid" id="btnLoad">טעינת קובץ</button>
+      <button class="btn" id="btnReset" title="ניקוי הנתונים שנטענו">איפוס</button>
+      <button class="btn" id="btnTheme" aria-label="החלפת ערכת צבעים">◐</button>
+      <input type="file" id="file" accept=".xlsx,.xls,.csv" class="hide">
+      <input type="file" id="sfile" accept=".xlsx,.xls,.csv" class="hide">
+      <input type="file" id="pfile" accept=".xlsx,.xls,.csv" class="hide">
+    </div>
+  </div>
+</header>
+
+<div class="strip" id="strip"></div>
+
+<nav class="rail"><div class="rail-in" role="tablist" id="rail"></div></nav>
+
+<main>
+  <section class="panel on" id="p-track"></section>
+  <section class="panel" id="p-bad"></section>
+  <section class="panel" id="p-fin"></section>
+  <section class="panel" id="p-rec"></section>
+  <section class="panel" id="p-sup"></section>
+  <section class="panel" id="p-crit"></section>
+  <section class="panel" id="p-sover"></section>
+  <section class="panel" id="p-scard"></section>
+  <section class="panel" id="p-srisk"></section>
+  <section class="panel" id="p-sload"></section>
+  <section class="panel" id="p-pover"></section>
+  <section class="panel" id="p-pyoy"></section>
+  <section class="panel" id="p-ppivot"></section>
+  <section class="panel" id="p-pins"></section>
+  <section class="panel" id="p-pload"></section>
+  <section class="panel" id="p-load"></section>
+</main>
+
+<footer class="site">
+  <div class="fin">
+    <span class="cr">© כל הזכויות שמורות לעמי פרייברג</span>
+    <span class="sep">|</span>
+    <span>מערכת לניהול רכש גלעם</span>
+    <span class="sep">|</span>
+    <span id="footMeta"></span>
+  </div>
+</footer>
+
+<script id="seedSup" type="application/json">{"keys":["no","name","nameEn","payTerm","payCode","type","curr","buyer","status","opened","phone","fax","email","addr","city","country","vat","taxFile","web","score","credit","sector","cls","clsCode","inco","qa","freight","standing","attach","ordKind","reqOrd"],"rows":[],"source":"—"}</script>
+<script id="seed" type="application/json">{"keys":["supplierNo","supplier","phone","po","buyer","orderDate","sku","desc","descEn","cls","cat","due","qtyOrd","qtyRec","qtyOpen","unit","openVal","curr","openILS","qtyInv","importFile","shipDate","arrDate","status","unitPrice"],"rows":[],"snapshot":"2026-01-01","source":"—"}</script>
+<script>
+/* ============================================================
+   גלעם — בקרת הזמנות רכש. קורא את דוח "הזמנות רכש פתוחות"
+   של Priority, מנרמל אותו, ומנתח אותו בדפדפן בלבד.
+   ============================================================ */
+(function(){
+"use strict";
+
+/* ---------- utils ---------- */
+const $=s=>document.querySelector(s), el=(t,c,h)=>{const e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;};
+const nf0=new Intl.NumberFormat('he-IL',{maximumFractionDigits:0});
+const nf2=new Intl.NumberFormat('he-IL',{maximumFractionDigits:2});
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money=v=>'₪'+nf0.format(Math.round(v||0));
+const short=v=>{v=v||0;const a=Math.abs(v);
+  if(a>=1e6)return '₪'+nf2.format(v/1e6)+'M'; if(a>=1e3)return '₪'+nf0.format(v/1e3)+'K'; return '₪'+nf0.format(v);};
+const qty=v=>v==null?'':nf2.format(v);
+const dstr=d=>{if(!d)return '';const p=d.split('-');return p[2]+'/'+p[1]+'/'+p[0];};
+const todayISO=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
+const dayDiff=(a,b)=>Math.round((Date.parse(b+'T00:00:00Z')-Date.parse(a+'T00:00:00Z'))/864e5);
+const HEB_MON=['ינו','פבר','מרץ','אפר','מאי','יונ','יול','אוג','ספט','אוק','נוב','דצמ'];
+const monLabel=k=>{const[y,m]=k.split('-');return HEB_MON[+m-1]+" '"+y.slice(2);};
+function store(k,v){try{if(v===undefined)return JSON.parse(localStorage.getItem('galam.'+k));localStorage.setItem('galam.'+k,JSON.stringify(v));}catch(e){return null;}}
+
+function toast(msg,ms){
+  const t=el('div','toast',esc(msg));document.body.appendChild(t);
+  setTimeout(()=>t.remove(),ms||3600);
+}
+
+/* ---------- header mapping (Priority → internal) ---------- */
+const norm=s=>String(s==null?'':s).replace(/[\s'"׳״`.\-\/\\()]/g,'').trim().toLowerCase();
+const ALIAS={
+  supplierNo:['מסספק','מספרספק','ספרספק','קודספק'],
+  supplier:['שםספק','ספק','שםהספק'],
+  phone:['טלפון','טל'],
+  po:['הזמנה','מסהזמנה','מספרהזמנה','הזמנתרכש'],
+  buyer:['לטיפול','קניין','קנין','אחראי','מטפל'],
+  orderDate:['תאריך','תאריךהזמנה','תהזמנה'],
+  sku:['מקט','מקט/','מספרפריט','פריט'],
+  desc:['תאורפריט','תיאורפריט','תאור'],
+  descEn:['תיאורלועזי','תאורלועזי'],
+  cls:['סיווגמלאיסוגפריט','סיווגמלאי','סוגפריט'],
+  cat:['קטגוריתמלאי','קטגוריה'],
+  due:['תאספקה','תאריךאספקה','אספקה','תאריךאספקהמובטח'],
+  qtyOrd:['כמותבהזמנה','כמותמוזמנת','כמות'],
+  qtyRec:['כמותשסופקה','כמותשהתקבלה','סופק'],
+  qtyOpen:['יתרהלאספקה','יתרה','יתרתאספקה'],
+  unit:['יח','יחידה','יחמידה'],
+  openVal:['שוויהיתרה','שוויתרה'],
+  curr:['מטבע'],
+  openILS:['שוויהיתרהבשקלים','שוויהיתרהשח','שוויבשקלים'],
+  qtyInv:['כמותבחשבוניות','כמותבחשבונית'],
+  importFile:['תיקיבוא'],
+  shipDate:['תיציאה','תאריךיציאה'],
+  arrDate:['תהגעה','תאריךהגעה'],
+  status:['תאורסטטוסהזמנה','סטטוסהזמנה','סטטוס','תיאורסטטוסהזמנה'],
+  unitPrice:['מחירליחידה','מחיריח','מחיר']
+};
+const NUMF=['qtyOrd','qtyRec','qtyOpen','openVal','openILS','qtyInv','unitPrice'];
+const DATEF=['orderDate','due','shipDate','arrDate'];
+
+function mapHeadersWith(hdr,dict){
+  const map={};
+  hdr.forEach((h,i)=>{
+    const n=norm(h); if(!n)return;
+    for(const key in dict){
+      if(map[key]!==undefined)continue;
+      if(dict[key].some(a=>norm(a)===n)){map[key]=i;return;}
+    }
+  });
+  hdr.forEach((h,i)=>{
+    const n=norm(h); if(!n)return;
+    for(const key in dict){
+      if(map[key]!==undefined)continue;
+      if(Object.values(map).indexOf(i)>-1)continue;
+      if(dict[key].some(a=>{a=norm(a);return n.indexOf(a)>-1||(a.indexOf(n)>-1&&n.length>3);})){map[key]=i;return;}
+    }
+  });
+  return map;
+}
+const mapHeaders=hdr=>mapHeadersWith(hdr,ALIAS);
+function toNum(v){
+  if(v==null||v==='')return null;
+  if(typeof v==='number')return isFinite(v)?v:null;
+  const s=String(v).replace(/[^0-9.\-]/g,''); const f=parseFloat(s); return isFinite(f)?f:null;
+}
+function toDate(v){
+  if(v==null||v==='')return null;
+  if(v instanceof Date&&!isNaN(v))return v.getFullYear()+'-'+String(v.getMonth()+1).padStart(2,'0')+'-'+String(v.getDate()).padStart(2,'0');
+  if(typeof v==='number'){ // excel serial
+    const d=new Date(Math.round((v-25569)*864e5));
+    if(isNaN(d))return null;
+    return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0');
+  }
+  const s=String(v).trim();
+  let m=s.match(/^(\d{4})-(\d{2})-(\d{2})/); if(m)return m[1]+'-'+m[2]+'-'+m[3];
+  m=s.match(/^(\d{1,2})[\/.](\d{1,2})[\/.](\d{2,4})/);
+  if(m){let y=+m[3]; if(y<100)y+=2000; return y+'-'+String(+m[2]).padStart(2,'0')+'-'+String(+m[1]).padStart(2,'0');}
+  const d=new Date(s); if(!isNaN(d))return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  return null;
+}
+function clean(v){return v==null?null:String(v).replace(/\s+/g,' ').trim()||null;}
+
+/* ---------- derive ---------- */
+function derive(rows){
+  const T=todayISO();
+  rows.forEach(r=>{
+    NUMF.forEach(k=>{if(typeof r[k]==='string')r[k]=toNum(r[k]);});
+    if(r.qtyOpen==null&&r.qtyOrd!=null)r.qtyOpen=(r.qtyOrd||0)-(r.qtyRec||0);
+    if(r.openILS==null)r.openILS=r.openVal||0;
+    r.openILS=r.openILS||0;
+    r.daysLate=r.due?dayDiff(r.due,T):null;
+    r.late=!!(r.due&&r.daysLate>0&&(r.qtyOpen||0)>0);
+    r.partial=(r.qtyRec||0)>0&&(r.qtyOpen||0)>0;
+    r.month=r.due?r.due.slice(0,7):'ללא תאריך';
+    r.pct=r.qtyOrd?Math.max(0,Math.min(100,100*(r.qtyRec||0)/r.qtyOrd)):0;
+    r.hay=((r.po||'')+' '+(r.supplier||'')+' '+(r.sku||'')+' '+(r.desc||'')+' '+(r.descEn||'')+' '+(r.buyer||'')+' '+(r.status||'')+' '+(r.cat||'')+' '+(r.cls||'')).toLowerCase();
+  });
+  return rows;
+}
+
+/* ---------- state ---------- */
+const seed=JSON.parse($('#seed').textContent);
+function fromSeed(){
+  return seed.rows.map(a=>{const o={};seed.keys.forEach((k,i)=>o[k]=a[i]);return o;});
+}
+/* סטטוס תקין אחד בלבד: אושר ע"י ספק. כל השאר טעון טיפול. */
+const DEFAULT_OK=['אושר ע"י ספק'];
+const DEFAULT_GROUPS=[
+  {name:'חומרי גלם',kw:['תירס','סוכר','גלוקוז','עמילן','חיטה','דקסטרוז','מולסה','raw','starch','sugar','corn','maize','syrup']},
+  {name:'כימיקלים',kw:['כימיקל','חומצה','נתרן','סודה','אנזים','כלור','acid','caustic','enzyme','chemical','naoh','hcl']},
+  {name:'אריזות ומיכלים',kw:['אריזה','שק','מיכל','חבית','יריעה','מדבקה','pack','bag','drum','ibc','container','label','pallet']},
+  {name:'לוגיסטיקה ושינוע',kw:['הובלה','שינוע','הסעה','משלוח','עמילות','נמל','מכולה','freight','shipping','transport','logistic','customs']},
+  {name:'חלפים ותחזוקה',kw:['משאבה','מסב','מנוע','ברז','אטם','חלף','חלקי','תיקון','אחזקה','pump','bearing','valve','motor','seal','spare','maintenance']},
+  {name:'מעבדה',kw:['מעבדה','ריאגנט','בדיקה','כיול','lab','reagent','calibration']}
+];
+
+function newFilters(){return{buyers:new Set(),statuses:new Set(),q:'',onlyLate:false,onlyBad:false,onlyPartial:false,crit:new Set(store('crit')||[]),critQ:''};}
+function cloneFilters(f){return{buyers:new Set(f.buyers),statuses:new Set(f.statuses),q:f.q,onlyLate:f.onlyLate,onlyBad:f.onlyBad,onlyPartial:f.onlyPartial,crit:new Set(f.crit),critQ:f.critQ};}
+const S={
+  rows:derive(fromSeed()),
+  label:seed.source+' · '+dstr(seed.snapshot),
+  custom:false,
+  tab:'track',
+  mode:'po',
+  sup:[],
+  supLabel:'',
+  supCustom:false,
+  sf:null,sd:null,
+  spend:[],spendLabel:'',pf:null,pd:null,pPending:null,
+  yA:null,yB:null,pivotDim:'supplier',pivotPer:'year',
+  supMeta:store('supmeta')||{},
+  supSel:null,
+  supQ:'',
+  f:newFilters(),      // הסינון שהוחל על המסך
+  d:newFilters(),      // הבחירה הנוכחית, ממתינה לרענון
+  dirty:false,
+  ok:new Set(store('ok')||DEFAULT_OK),
+  limit:150,
+  sort:{k:'due',dir:1}
+};
+const isBad=r=>!S.ok.has(typeof r==='string'?r:r.status);
+function markDirty(){
+  S.dirty=true;
+  document.querySelectorAll('.refresh').forEach(b=>{b.classList.add('btn-solid');b.classList.add('pulse');});
+}
+function applyFilters(){
+  S.f=cloneFilters(S.d);S.dirty=false;S.limit=150;
+  store('crit',[...S.d.crit]);
+  render();
+}
+function bindChips(container,set){
+  if(!container)return;
+  container.onclick=e=>{const b=e.target.closest('.chip');if(!b)return;
+    const v=b.dataset.v; if(set.has(v)){set.delete(v);b.setAttribute('aria-pressed','false');}
+    else{set.add(v);b.setAttribute('aria-pressed','true');}
+    markDirty();};
+}
+function refreshBtn(id,label){
+  return `<button class="btn btn-sm refresh ${S.dirty?'btn-solid pulse':''}" data-refresh="1" id="${id||''}">${label||'רענון תצוגה'}</button>`;
+}
+const saved=store('data');
+if(saved&&saved.rows&&saved.rows.length){S.rows=derive(saved.rows);S.label=saved.label;S.custom=true;}
+
+/* ---------- selectors ---------- */
+const uniq=(arr,k)=>{const m=new Map();arr.forEach(r=>{const v=r[k]||'—';m.set(v,(m.get(v)||0)+1);});return [...m.entries()].sort((a,b)=>b[1]-a[1]);};
+function filtered(){
+  const f=S.f,q=f.q.toLowerCase().trim();
+  return S.rows.filter(r=>{
+    if(f.buyers.size&&!f.buyers.has(r.buyer||'—'))return false;
+    if(f.statuses.size&&!f.statuses.has(r.status||'—'))return false;
+    if(f.onlyLate&&!r.late)return false;
+    if(f.onlyBad&&!isBad(r))return false;
+    if(f.onlyPartial&&!r.partial)return false;
+    if(q&&r.hay.indexOf(q)<0)return false;
+    return true;
+  });
+}
+const sum=(a,k)=>a.reduce((s,r)=>s+(r[k]||0),0);
+function group(arr,keyFn){
+  const m=new Map();
+  arr.forEach(r=>{const k=keyFn(r)||'—';let g=m.get(k);if(!g){g={k,rows:[],val:0,late:0,lateVal:0};m.set(k,g);}
+    g.rows.push(r);g.val+=r.openILS||0;if(r.late){g.late++;g.lateVal+=r.openILS||0;}});
+  return [...m.values()];
+}
+
+/* ---------- SVG charts ---------- */
+const PALETTE=['#27506F','#9A6B06','#2C6248','#A3221A','#6B5B95','#3E7C8F','#8A6B4F','#55606B','#7D8C3F','#A2566B'];
+function donut(data,size){
+  size=size||168;const R=size/2,r=R*0.6;const tot=data.reduce((s,d)=>s+d.v,0)||1;let a=-Math.PI/2;
+  let p='';
+  data.forEach((d,i)=>{
+    const ang=d.v/tot*Math.PI*2,b=a+ang;
+    const x1=R+R*Math.cos(a),y1=R+R*Math.sin(a),x2=R+R*Math.cos(b),y2=R+R*Math.sin(b);
+    const xi2=R+r*Math.cos(b),yi2=R+r*Math.sin(b),xi1=R+r*Math.cos(a),yi1=R+r*Math.sin(a);
+    const lg=ang>Math.PI?1:0;
+    if(ang>0.0001)p+=`<path d="M${x1} ${y1} A${R} ${R} 0 ${lg} 1 ${x2} ${y2} L${xi2} ${yi2} A${r} ${r} 0 ${lg} 0 ${xi1} ${yi1} Z" fill="${d.c||PALETTE[i%10]}"><title>${esc(d.k)}: ${nf0.format(d.v)}</title></path>`;
+    a=b;
+  });
+  return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" role="img" aria-label="התפלגות">${p}</svg>`;
+}
+function bars(data,opt){
+  opt=opt||{};const max=Math.max(1,...data.map(d=>d.v));
+  return '<div class="bars">'+data.map(d=>`<div class="bar-row">
+    <div class="bar-top"><span title="${esc(d.k)}">${esc(d.k)}</span><span class="num" style="color:var(--steel)">${esc(d.lab!=null?d.lab:nf0.format(d.v))}</span></div>
+    <div class="bar-track"><div class="bar-fill ${d.cls||opt.cls||''}" style="width:${(d.v/max*100).toFixed(1)}%"></div></div></div>`).join('')+'</div>';
+}
+function columns(data,opt){
+  opt=opt||{};const W=Math.max(360,data.length*54),H=150,P=22;
+  const max=Math.max(1,...data.map(d=>d.v));
+  let s=`<svg viewBox="0 0 ${W} ${H+34}" width="100%" height="${H+34}" preserveAspectRatio="none" style="display:block">`;
+  s+=`<line x1="0" y1="${H}" x2="${W}" y2="${H}" stroke="var(--hair)" stroke-width="1"/>`;
+  data.forEach((d,i)=>{
+    const bw=W/data.length,x=W-(i+1)*bw+bw*0.18,w=bw*0.64;
+    const h=Math.max(1,(d.v/max)*(H-P));
+    const vl=d.vlab!=null?d.vlab:short(d.v);
+    s+=`<rect x="${x.toFixed(1)}" y="${(H-h).toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" fill="${d.c||'var(--sea)'}" rx="1"><title>${esc(d.k)}: ${esc(vl)}</title></rect>`;
+    s+=`<text x="${(x+w/2).toFixed(1)}" y="${H+15}" font-size="11" fill="var(--steel)" text-anchor="middle" font-family="Rubik,sans-serif">${esc(d.lab||d.k)}</text>`;
+    s+=`<text x="${(x+w/2).toFixed(1)}" y="${(H-h-5).toFixed(1)}" font-size="10.5" fill="var(--faint)" text-anchor="middle" font-family="Rubik,sans-serif">${esc(vl)}</text>`;
+  });
+  return s+'</svg>';
+}
+
+/* ---------- table builder ---------- */
+const COLS=[
+  {k:'po',t:'הזמנה',f:r=>`<b style="font-weight:500">${esc(r.po)}</b><span class="sub">${esc(r.buyer||'')} · ${dstr(r.orderDate)}</span>`},
+  {k:'supplier',t:'ספק',f:r=>`${esc(r.supplier)}<span class="sub">${esc(r.supplierNo||'')}</span>`},
+  {k:'sku',t:'מק״ט ותיאור',cls:'desc',f:r=>`${esc(r.desc||'')}<span class="sub">${esc(r.sku||'')}${r.cls?' · '+esc(r.cls):''}</span>`},
+  {k:'due',t:'ת. אספקה',f:r=>`${dstr(r.due)}${r.late?`<span class="sub" style="color:var(--red)">איחור ${r.daysLate} ימים</span>`:(r.daysLate!=null&&r.daysLate>-15?`<span class="sub">בעוד ${-r.daysLate} ימים</span>`:'')}`},
+  {k:'qtyOpen',t:'יתרה / הוזמן',cls:'ta-e',f:r=>`<span class="num">${qty(r.qtyOpen)}</span> <span style="color:var(--faint)">/ ${qty(r.qtyOrd)}</span> ${esc(r.unit||'')}${r.partial?`<span class="sub">סופק ${r.pct.toFixed(0)}%</span>`:''}`},
+  {k:'openILS',t:'שווי יתרה',cls:'ta-e',f:r=>`<span class="num">${money(r.openILS)}</span>${r.curr&&r.curr!=='ILS'?`<span class="sub num">${nf0.format(r.openVal)} ${esc(r.curr)}</span>`:''}`},
+  {k:'status',t:'סטטוס',f:r=>`<span class="tag ${isBad(r)?'t-amb':'t-moss'}">${esc(r.status||'—')}</span>${r.late?' <span class="tag t-red">באיחור</span>':''}`}
+];
+function sortRows(arr){
+  const{k,dir}=S.sort;
+  return arr.slice().sort((a,b)=>{
+    let x=a[k],y=b[k];
+    if(k==='due'||k==='orderDate'){x=x||'9999';y=y||'9999';}
+    if(typeof x==='number'||typeof y==='number'){x=x||0;y=y||0;return (x-y)*dir;}
+    return String(x==null?'':x).localeCompare(String(y==null?'':y),'he')*dir;
+  });
+}
+function renderTable(rows,mount,limitKey){
+  const sorted=sortRows(rows), shown=sorted.slice(0,S.limit);
+  const head=COLS.map(c=>`<th data-sk="${c.k}">${c.t} ${S.sort.k===c.k?`<span class="ar">${S.sort.dir>0?'▲':'▼'}</span>`:''}</th>`).join('');
+  const body=shown.map(r=>`<tr class="${r.late?'late':''}">`+COLS.map(c=>`<td class="${c.cls||''}">${c.f(r)}</td>`).join('')+'</tr>').join('');
+  mount.innerHTML=rows.length?
+    `<div class="tscroll"><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`+
+    (sorted.length>shown.length?`<div class="more"><button class="btn" id="more">הצגת 150 שורות נוספות (${nf0.format(sorted.length-shown.length)} נותרו)</button></div>`:'')
+    :`<div class="box empty"><b>אין שורות התואמות את הסינון</b>נקו את המסננים או שנו את טווח החיפוש.</div>`;
+  mount.querySelectorAll('th[data-sk]').forEach(th=>th.onclick=()=>{
+    const k=th.dataset.sk; S.sort=(S.sort.k===k)?{k,dir:-S.sort.dir}:{k,dir:k==='openILS'?-1:1}; render();
+  });
+  const m=mount.querySelector('#more'); if(m)m.onclick=()=>{S.limit+=150;render();};
+}
+
+/* ---------- export ---------- */
+const EXPORT_COLS=[['po','הזמנה'],['orderDate','תאריך הזמנה'],['buyer','קניין'],['supplierNo','מס\' ספק'],['supplier','ספק'],
+  ['sku','מק״ט'],['desc','תיאור פריט'],['cls','סיווג'],['cat','קטגוריה'],['due','ת. אספקה'],['daysLate','ימי איחור'],
+  ['qtyOrd','כמות בהזמנה'],['qtyRec','סופק'],['qtyOpen','יתרה'],['unit','יח\''],['unitPrice','מחיר ליחידה'],
+  ['openVal','שווי יתרה'],['curr','מטבע'],['openILS','שווי יתרה ₪'],['status','סטטוס']];
+async function saveFile(filename,data){
+  try{
+    const dl=await window.claude?.use?.('downloads');
+    if(dl){await dl.save({filename,data});toast('הקובץ נשמר: '+filename);return;}
+  }catch(e){
+    if(e&&e.code==='declined'){return;}
+  }
+  try{
+    const blob=data instanceof Blob?data:new Blob([data]);
+    const u=URL.createObjectURL(blob),a=document.createElement('a');
+    a.href=u;a.download=filename;document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(u),4000);
+    toast('הקובץ נשמר: '+filename);
+  }catch(e){toast('הורדת קבצים אינה זמינה בתצוגה זו');}
+}
+function exportRows(rows,name){
+  if(!rows.length){toast('אין נתונים לייצוא');return;}
+  const aoa=[EXPORT_COLS.map(c=>c[1])].concat(rows.map(r=>EXPORT_COLS.map(c=>{
+    const v=r[c[0]]; if(c[0]==='due'||c[0]==='orderDate')return v?dstr(v):'';
+    if(c[0]==='daysLate')return r.late?r.daysLate:'';
+    return v==null?'':v;})));
+  exportAoa(aoa,name);
+}
+function exportAoa(aoa,name){
+  const wb=XLSX.utils.book_new(),ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols']=aoa[0].map((_,i)=>({wch:Math.min(42,Math.max(9,...aoa.slice(0,120).map(r=>String(r[i]==null?'':r[i]).length+2)))}));
+  XLSX.utils.book_append_sheet(wb,ws,'נתונים');
+  const buf=XLSX.write(wb,{bookType:'xlsx',type:'array'});
+  saveFile(name+' '+dstr(todayISO()).replace(/\//g,'.')+'.xlsx',new Blob([buf]));
+}
+
+/* ============================================================
+   RENDERERS
+   ============================================================ */
+function renderMeta(){
+  if(S.mode==='spend'){
+    const rows=S.spend.length?spendFiltered():[],tot=spendSum(rows);
+    const sups=spendGroup(rows,r=>r.key),yrs=[...new Set(rows.map(r=>r.year).filter(Boolean))].sort();
+    const lastY=yrs[yrs.length-1],prevY=yrs[yrs.length-2];
+    const a=lastY?spendSum(rows.filter(r=>r.year===lastY)):0,b=prevY?spendSum(rows.filter(r=>r.year===prevY)):0;
+    $('#meta').innerHTML=S.spend.length
+      ? `דוח ספנד: <b>${esc(S.spendLabel)}</b><br>${nf0.format(S.spend.length)} תנועות · ${nf0.format(sups.length)} ספקים · ${yrs.length?yrs[0]+'–'+lastY:''}`
+      : 'דוח הספנד טרם נטען · גררו אותו ללשונית הטעינה';
+    $('#strip').innerHTML=S.spend.length?[
+      {k:'ספנד בתצוגה',v:short(tot),s:nf0.format(rows.length)+' תנועות'},
+      {k:'ספקים',v:nf0.format(sups.length),s:'ממוצע '+short(sups.length?tot/sups.length:0)+' לספק'},
+      {k:lastY?'שנת '+lastY:'—',v:short(a),s:nf0.format(rows.filter(r=>r.year===lastY).length)+' תנועות'},
+      {k:prevY?'שינוי מול '+prevY:'אין בסיס להשוואה',v:b?((a-b)/Math.abs(b)*100).toFixed(1)+'%':'—',
+        s:b?(a-b>0?'+':'')+short(a-b):'',c:b?((a-b)>0?'alarm':'warn'):''},
+      {k:'הספק הגדול',v:sups.length?short(Math.max(...sups.map(g=>g.v))):'—',
+        s:sups.length?esc((sups.sort((x,y)=>y.v-x.v)[0].rows[0].supplier||'').slice(0,26)):''}
+    ].map(x=>`<div class="gauge ${x.c||''}"><div class="gauge-k">${x.k}</div><div class="gauge-v">${x.v}</div><div class="gauge-s">${x.s}</div></div>`).join('')
+    :`<div class="gauge" style="flex-basis:100%"><div class="gauge-k">מצב המערכת</div>
+       <div class="gauge-v" style="font-size:22px">ממתין לטעינת דוח ספנד</div>
+       <div class="gauge-s">הקובץ נקרא בדפדפן שלכם בלבד</div></div>`;
+    return;
+  }
+  const r=S.rows,late=r.filter(x=>x.late);
+  if(!r.length){
+    $('#meta').innerHTML=S.sup.length
+      ? `קובץ ספקים: <b>${esc(S.supLabel)}</b> · ${nf0.format(S.sup.length)} ספקים<br>דוח הזמנות טרם נטען`
+      : 'לא נטענו נתונים · טענו את דוח ההזמנות ואת קובץ הספקים';
+    $('#strip').innerHTML=`<div class="gauge" style="flex-basis:100%"><div class="gauge-k">מצב המערכת</div>
+      <div class="gauge-v" style="font-size:22px">ממתין לטעינת דוח הזמנות</div>
+      <div class="gauge-s">הנתונים נקראים בדפדפן שלכם בלבד ואינם נשלחים לשום שרת</div></div>`;
+    return;
+  }
+  $('#meta').innerHTML=`מקור הנתונים: <b>${esc(S.label)}</b><br>${nf0.format(r.length)} שורות · ${nf0.format(new Set(r.map(x=>x.po)).size)} הזמנות · ${nf0.format(new Set(r.map(x=>x.supplier)).size)} ספקים · נכון ל־${dstr(todayISO())}`;
+  const bad=r.filter(isBad);
+  const g=[
+    {k:'התחייבות פתוחה',v:short(sum(r,'openILS')),s:nf0.format(r.length)+' שורות פתוחות'},
+    {k:'שורות באיחור',v:nf0.format(late.length),s:short(sum(late,'openILS'))+' תקועים',c:late.length?'alarm':''},
+    {k:'איחור ממוצע',v:late.length?nf0.format(Math.round(sum(late,'daysLate')/late.length))+' ימים':'—',s:late.length?'מקסימום '+nf0.format(Math.max(...late.map(x=>x.daysLate)))+' ימים':'אין איחורים',c:late.length?'warn':''},
+    {k:'לא אושרו ע״י ספק',v:nf0.format(bad.length),s:short(sum(bad,'openILS'))+' · '+(r.length?(bad.length/r.length*100).toFixed(0):0)+'% מהשורות',c:bad.length?'warn':''},
+    {k:'אספקה ב־30 יום',v:short(sum(r.filter(x=>x.due&&x.daysLate<=0&&x.daysLate>=-30),'openILS')),s:nf0.format(r.filter(x=>x.due&&x.daysLate<=0&&x.daysLate>=-30).length)+' שורות'}
+  ];
+  $('#strip').innerHTML=g.map(x=>`<div class="gauge ${x.c||''}"><div class="gauge-k">${x.k}</div><div class="gauge-v">${x.v}</div><div class="gauge-s">${x.s}</div></div>`).join('');
+}
+
+function filterBar(opts){
+  opts=opts||{};
+  const d=S.d,buyers=uniq(S.rows,'buyer'),statuses=uniq(S.rows,'status');
+  return `<div class="filters">
+      <div class="fgrp" style="flex:1 1 220px"><label class="flab" for="q">חיפוש חופשי</label>
+        <input type="search" id="q" placeholder="הזמנה, ספק, מק״ט, תיאור…" value="${esc(d.q)}"></div>
+      <div class="fgrp" style="flex:2 1 330px"><span class="flab">קניינים — בחרו ולחצו רענון (${d.buyers.size?nf0.format(d.buyers.size)+' נבחרו':'הכול'})</span>
+        <div class="chips" id="cBuyers">${buyers.map(([k,n])=>`<button class="chip" data-v="${esc(k)}" aria-pressed="${d.buyers.has(k)}">${esc(k)}<span class="n">${n}</span></button>`).join('')}</div>
+        <div style="margin-top:6px;display:flex;gap:6px"><button class="btn btn-sm" id="bAll">בחירת הכול</button><button class="btn btn-sm" id="bNone">ניקוי</button></div></div>
+      ${opts.noStatus?'':`<div class="fgrp" style="flex:2 1 290px"><span class="flab">סטטוסים</span>
+        <div class="chips" id="cStat">${statuses.map(([k,n])=>`<button class="chip ${isBad(k)?'bad':''}" data-v="${esc(k)}" aria-pressed="${d.statuses.has(k)}">${esc(k)}<span class="n">${n}</span></button>`).join('')}</div></div>`}
+      <div class="fgrp" style="flex:0 1 auto">
+        <label class="ck"><input type="checkbox" id="kLate" ${d.onlyLate?'checked':''}> באיחור בלבד</label>
+        ${opts.noStatus?'':`<label class="ck"><input type="checkbox" id="kBad" ${d.onlyBad?'checked':''}> לא אושר ע״י ספק בלבד</label>`}
+        <label class="ck"><input type="checkbox" id="kPart" ${d.onlyPartial?'checked':''}> אספקה חלקית בלבד</label>
+      </div>
+      <div class="fgrp" style="flex:0 1 auto;align-self:flex-end;display:flex;gap:6px">
+        ${refreshBtn('','רענון תצוגה')}
+        <button class="btn btn-sm" id="fClear">איפוס סינון</button>
+      </div>
+    </div>`;
+}
+function bindFilterBar(opts){
+  opts=opts||{};
+  const d=S.d;
+  const qi=$('#q'); if(qi){
+    qi.oninput=()=>{d.q=qi.value;markDirty();};
+    qi.onkeydown=e=>{if(e.key==='Enter')applyFilters();};
+  }
+  bindChips($('#cBuyers'),d.buyers);
+  bindChips($('#cStat'),d.statuses);
+  const all=$('#bAll'),none=$('#bNone');
+  if(all)all.onclick=()=>{d.buyers.clear();uniq(S.rows,'buyer').forEach(([k])=>d.buyers.add(k));applyFilters();};
+  if(none)none.onclick=()=>{d.buyers.clear();applyFilters();};
+  const kl=$('#kLate');if(kl)kl.onchange=e=>{d.onlyLate=e.target.checked;markDirty();};
+  const kb=$('#kBad');if(kb)kb.onchange=e=>{d.onlyBad=e.target.checked;markDirty();};
+  const kp=$('#kPart');if(kp)kp.onchange=e=>{d.onlyPartial=e.target.checked;markDirty();};
+  const fc=$('#fClear');if(fc)fc.onclick=()=>{const keep=new Set(S.d.crit),kq=S.d.critQ;S.d=newFilters();S.d.crit=keep;S.d.critQ=kq;applyFilters();};
+}
+
+function renderTrack(){
+  const p=$('#p-track'),f=S.f;
+  const rows=filtered();
+  const late=rows.filter(r=>r.late);
+  p.innerHTML=`
+  <div class="sec">${filterBar()}</div>
+
+  <div class="sec">
+    <div class="sec-h">
+      <h2>הזמנות (${nf0.format(rows.length)})</h2>
+      <p>${late.length?`<b style="color:var(--red)">${nf0.format(late.length)} שורות באיחור</b> בשווי ${money(sum(late,'openILS'))} · `:''}סה״כ יתרה מסוננת ${money(sum(rows,'openILS'))}</p>
+      <button class="btn btn-sm" id="xTrack">ייצוא לאקסל</button>
+    </div>
+    <div id="tbl"></div>
+  </div>
+
+  <div class="sec grid2">
+    <div class="box box-p">
+      <div class="chart-t">התפלגות סטטוסים</div>
+      <div class="chart-s">לפי מספר שורות, בתצוגה המסוננת</div>
+      <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">
+        ${donut(uniq(rows,'status').map(([k,v],i)=>({k,v,c:isBad(k)?PALETTE[i%10]:'var(--moss)'})))}
+        <div class="legend" style="flex:1">${uniq(rows,'status').map(([k,v],i)=>`<div><span class="sw" style="background:${isBad(k)?PALETTE[i%10]:'var(--moss)'}"></span>${esc(k)}${isBad(k)?'':' <span style="color:var(--moss);font-size:11px">תקין</span>'}<span class="lv">${nf0.format(v)}</span></div>`).join('')}</div>
+      </div>
+    </div>
+    <div class="box box-p">
+      <div class="chart-t">חלוקת איחורים לפי ותק</div>
+      <div class="chart-s">שווי היתרה התקועה בכל טווח ימי איחור</div>
+      ${(()=>{const B=[[1,30,'1–30 ימים'],[31,90,'31–90'],[91,180,'91–180'],[181,365,'181–365'],[366,99999,'מעל שנה']];
+        const d=B.map(([a,b,l])=>{const g=late.filter(r=>r.daysLate>=a&&r.daysLate<=b);return{k:l,v:sum(g,'openILS'),lab:money(sum(g,'openILS'))+' · '+g.length+' שורות',cls:'red'};});
+        return late.length?bars(d):'<div style="color:var(--steel);font-size:13px;padding:14px 0">אין שורות באיחור בתצוגה הנוכחית.</div>';})()}
+    </div>
+  </div>`;
+
+  renderTable(rows,$('#tbl'));
+  bindFilterBar();
+  $('#xTrack').onclick=()=>exportRows(sortRows(rows),'מעקב הזמנות');
+}
+
+/* ---------- לשונית סטטוסים לא תקינים ---------- */
+function renderBad(){
+  const p=$('#p-bad'),d=S.d;
+  const base=filtered();
+  const rows=base.filter(isBad);
+  const statuses=uniq(S.rows,'status');
+  const byStat=group(rows,r=>r.status).sort((a,b)=>b.val-a.val);
+  const byBuyer=group(rows,r=>r.buyer).sort((a,b)=>b.val-a.val);
+  const sel=S.f.buyers;
+  p.innerHTML=`
+  <div class="sec">
+    <div class="sec-h"><h2>הגדרת תקינות</h2>
+      <p>סטטוס תקין הוא רק זה שסומן למטה. כל סטטוס אחר נחשב לא תקין ומופיע בלשונית הזו, ונספר ככזה בכל שאר המסכים.</p>
+      <button class="btn btn-sm" id="okReset">שחזור ברירת מחדל</button></div>
+    <div class="box box-p">
+      <span class="flab">סטטוסים תקינים (לחיצה מסמנת/מבטלת)</span>
+      <div class="chips" id="cOk">${statuses.map(([k,n])=>`<button class="chip" data-v="${esc(k)}" aria-pressed="${S.ok.has(k)}">${esc(k)}<span class="n">${n}</span></button>`).join('')}</div>
+      <div class="note">כרגע תקין: ${[...S.ok].map(esc).join(', ')||'<span style="color:var(--red)">לא הוגדר סטטוס תקין — כל השורות נחשבות לא תקינות</span>'}. שינוי כאן נכנס לתוקף מיד ונשמר בדפדפן.</div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-h"><h2>סינון לפי קניין</h2>
+      <p>סמנו את הקניינים שברצונכם לראות ולחצו רענון. מה שלא נבחר ייעלם מהמסך הזה ומכל שאר הלשוניות.</p></div>
+    ${filterBar({noStatus:true})}
+    <div class="note">${sel.size?'מוצגים כעת: '+[...sel].map(esc).join(', '):'מוצגים כל הקניינים.'}${S.dirty?' <b style="color:var(--amber)">· יש בחירה שטרם רועננה</b>':''}</div>
+  </div>
+
+  <div class="sec grid3">
+    <div class="box box-p"><div class="chart-t">שורות לא תקינות</div>
+      <div class="gauge-v" style="font-size:30px;margin:4px 0 0">${nf0.format(rows.length)}</div>
+      <div class="chart-s">מתוך ${nf0.format(base.length)} בתצוגה · ${base.length?(rows.length/base.length*100).toFixed(0):0}%</div></div>
+    <div class="box box-p"><div class="chart-t">שווי תקוע</div>
+      <div class="gauge-v" style="font-size:30px;margin:4px 0 0;color:var(--amber)">${money(sum(rows,'openILS'))}</div>
+      <div class="chart-s">${nf0.format(new Set(rows.map(r=>r.po)).size)} הזמנות · ${nf0.format(new Set(rows.map(r=>r.supplier)).size)} ספקים</div></div>
+    <div class="box box-p"><div class="chart-t">מתוכן באיחור</div>
+      <div class="gauge-v" style="font-size:30px;margin:4px 0 0;color:var(--red)">${nf0.format(rows.filter(r=>r.late).length)}</div>
+      <div class="chart-s">${money(sum(rows.filter(r=>r.late),'openILS'))} · הן גם לא אושרו וגם עברו את התאריך</div></div>
+  </div>
+
+  <div class="sec grid2">
+    <div class="box box-p"><div class="chart-t">פילוח לפי סטטוס</div>
+      <div class="chart-s">שווי יתרה בכל סטטוס לא תקין</div>
+      ${byStat.length?bars(byStat.map(g=>({k:g.k+' · '+g.rows.length+' שורות',v:g.val,lab:money(g.val),cls:'amb'}))):'<div class="chart-s">אין שורות.</div>'}
+    </div>
+    <div class="box box-p"><div class="chart-t">פילוח לפי קניין</div>
+      <div class="chart-s">מי מחזיק את העבודה שטרם אושרה</div>
+      ${byBuyer.length?bars(byBuyer.slice(0,12).map(g=>({k:g.k+' · '+g.rows.length+' שורות',v:g.val,lab:money(g.val),cls:'amb'}))):'<div class="chart-s">אין שורות.</div>'}
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-h"><h2>כל השורות שלא אושרו ע״י ספק (${nf0.format(rows.length)})</h2>
+      <p>סה״כ ${money(sum(rows,'openILS'))}${rows.filter(r=>r.late).length?` · <b style="color:var(--red)">${rows.filter(r=>r.late).length} באיחור</b>`:''}</p>
+      ${refreshBtn('','רענון')}
+      <button class="btn btn-sm" id="xBad">ייצוא לאקסל</button></div>
+    <div id="btbl"></div>
+  </div>`;
+  renderTable(rows,$('#btbl'));
+  bindFilterBar({noStatus:true});
+  $('#cOk').onclick=e=>{const b=e.target.closest('.chip');if(!b)return;
+    const v=b.dataset.v; S.ok.has(v)?S.ok.delete(v):S.ok.add(v); store('ok',[...S.ok]); render();};
+  $('#okReset').onclick=()=>{S.ok=new Set(DEFAULT_OK);store('ok',DEFAULT_OK);render();};
+  $('#xBad').onclick=()=>exportRows(sortRows(rows),'סטטוסים לא תקינים');
+}
+
+function renderFin(){
+  const rows=filtered(),p=$('#p-fin');
+  const tot=sum(rows,'openILS');
+  const byCur=group(rows,r=>r.curr||'ILS').sort((a,b)=>b.val-a.val);
+  const byBuyer=group(rows,r=>r.buyer).sort((a,b)=>b.val-a.val);
+  const bySup=group(rows,r=>r.supplier).sort((a,b)=>b.val-a.val).slice(0,12);
+  const byMonth=group(rows,r=>r.month).filter(g=>g.k!=='ללא תאריך').sort((a,b)=>a.k<b.k?-1:1);
+  const T=todayISO().slice(0,7);
+  const future=byMonth.filter(g=>g.k>=T).slice(0,12);
+  const overdueVal=sum(rows.filter(r=>r.late),'openILS');
+  p.innerHTML=`
+  <div class="sec">
+    <div class="sec-h"><h2>כמה כסף בחוץ</h2>
+      <p>סך ההתחייבות הפתוחה בשורות המסוננות. הסינון נשמר מלשונית המעקב${S.f.buyers.size?' · קניינים: '+[...S.f.buyers].map(esc).join(', '):''}.</p>
+      ${refreshBtn('','רענון')}
+      <button class="btn btn-sm" id="xFin">ייצוא פילוחים</button></div>
+    <div class="grid3">
+      <div class="box box-p"><div class="chart-t">סה״כ התחייבות פתוחה</div>
+        <div class="gauge-v" style="font-size:34px;margin:6px 0 2px">${money(tot)}</div>
+        <div class="chart-s">${nf0.format(rows.length)} שורות · ${nf0.format(new Set(rows.map(r=>r.po)).size)} הזמנות</div>
+        <div style="margin-top:12px">${bars(byCur.map(g=>({k:g.k+' · '+g.rows.length+' שורות',v:g.val,lab:money(g.val)})))}</div>
+        <div class="note">סכומי המט״ח מוצגים בשקלים לפי שער ההמרה שבדוח ה-Priority.</div>
+      </div>
+      <div class="box box-p"><div class="chart-t">באיחור מול עתידי</div>
+        <div class="chart-s">חלוקת ההתחייבות לפי מצב מול תאריך האספקה</div>
+        <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-top:6px">
+        ${donut([{k:'באיחור',v:overdueVal,c:'var(--red)'},{k:'בתוך התאריך',v:Math.max(0,tot-overdueVal),c:'var(--sea)'}],140)}
+        <div class="legend" style="flex:1">
+          <div><span class="sw" style="background:var(--red)"></span>באיחור<span class="lv">${money(overdueVal)}</span></div>
+          <div><span class="sw" style="background:var(--sea)"></span>בתוך התאריך<span class="lv">${money(tot-overdueVal)}</span></div>
+          <div style="margin-top:6px;color:var(--steel)">${tot?((overdueVal/tot)*100).toFixed(1):0}% מההתחייבות הפתוחה תקועה מעבר לתאריך המובטח.</div>
+        </div></div>
+      </div>
+      <div class="box box-p"><div class="chart-t">התחייבות לפי קניין</div>
+        <div class="chart-s">שווי יתרה · מתוכו באיחור</div>
+        ${bars(byBuyer.slice(0,10).map(g=>({k:g.k,v:g.val,lab:money(g.val)+(g.lateVal?' · '+money(g.lateVal)+' באיחור':'')})))}
+      </div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-h"><h2>תחזית אספקה והתחייבות לפי חודש</h2>
+      <p>בסיס לתזרים: מתי הכסף שכבר התחייבנו אליו אמור להפוך לקבלה במחסן.</p></div>
+    <div class="box box-p" style="overflow-x:auto">
+      ${future.length?columns(future.map(g=>({k:g.k,lab:monLabel(g.k),v:g.val,c:g.k===T?'var(--amber)':'var(--sea)'}))):'<div class="chart-s">אין חודשים עתידיים בתצוגה.</div>'}
+      <div class="note">החודש הנוכחי מסומן בכתום. חודשים שחלפו וטרם סופקו מופיעים בטבלת האיחורים ובלשונית ההמלצות.</div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-h"><h2>ספקים מובילים בהתחייבות</h2><p>12 הספקים עם היתרה הפתוחה הגבוהה ביותר</p></div>
+    <div class="tscroll"><table><thead><tr><th>ספק</th><th>שורות</th><th>הזמנות</th><th class="ta-e">יתרה פתוחה</th><th class="ta-e">% מסך ההתחייבות</th><th class="ta-e">מתוכו באיחור</th></tr></thead>
+    <tbody>${bySup.map(g=>`<tr><td>${esc(g.k)}</td><td class="num">${g.rows.length}</td><td class="num">${new Set(g.rows.map(r=>r.po)).size}</td>
+      <td class="ta-e num">${money(g.val)}</td><td class="ta-e num">${tot?((g.val/tot)*100).toFixed(1):0}%</td>
+      <td class="ta-e">${g.lateVal?`<span class="tag t-red">${money(g.lateVal)}</span>`:'<span style="color:var(--faint)">—</span>'}</td></tr>`).join('')}</tbody></table></div>
+  </div>`;
+  $('#xFin').onclick=()=>{
+    const aoa=[['פילוח','ערך','שורות','יתרה ₪','מתוכו באיחור ₪']];
+    byBuyer.forEach(g=>aoa.push(['קניין',g.k,g.rows.length,Math.round(g.val),Math.round(g.lateVal)]));
+    group(rows,r=>r.supplier).sort((a,b)=>b.val-a.val).forEach(g=>aoa.push(['ספק',g.k,g.rows.length,Math.round(g.val),Math.round(g.lateVal)]));
+    byMonth.forEach(g=>aoa.push(['חודש אספקה',g.k,g.rows.length,Math.round(g.val),Math.round(g.lateVal)]));
+    byCur.forEach(g=>aoa.push(['מטבע',g.k,g.rows.length,Math.round(g.val),Math.round(g.lateVal)]));
+    exportAoa(aoa,'חשיפה פיננסית');
+  };
+}
+
+function recommendations(){
+  const rows=filtered(),T=todayISO(),out=[];
+  // 1. critical suppliers
+  const sup=group(rows.filter(r=>r.late),r=>r.supplier)
+    .filter(g=>g.rows.length>=2||g.lateVal>=100000)
+    .map(g=>({...g,avg:Math.round(sum(g.rows,'daysLate')/g.rows.length),max:Math.max(...g.rows.map(r=>r.daysLate))}))
+    .sort((a,b)=>b.lateVal-a.lateVal).slice(0,12);
+  out.push({id:'sup',sev:'red',title:'ספקים לתיעדוף מיידי',
+    why:'לפחות שתי שורות באיחור או מעל ₪100K תקועים. מיון לפי שווי היתרה התקועה.',
+    cols:['ספק','שורות באיחור','שווי תקוע','איחור ממוצע','איחור מקסימלי','קניין מוביל'],
+    rows:sup.map(g=>[esc(g.k),g.rows.length,money(g.lateVal),`<span class="tag t-amb">${g.avg} ימים</span>`,g.max+' ימים',esc(uniq(g.rows,'buyer')[0][0])]),
+    data:g=>g, raw:sup.flatMap(g=>g.rows)});
+  // 2. high value not approved
+  const unapproved=rows.filter(isBad).sort((a,b)=>b.openILS-a.openILS).slice(0,15);
+  out.push({id:'appr',sev:'amb',title:'הזמנות בסכום גבוה שטרם אושרו ע״י ספק',
+    why:'שורות שהסטטוס שלהן אינו "אושר ע״י ספק", לפי שווי. כל יום בסטטוס כזה הוא יום שלא התחיל להימנות לאספקה.',
+    cols:['הזמנה','ספק','סטטוס','ת. אספקה','שווי יתרה','קניין'],
+    rows:unapproved.map(r=>[esc(r.po),esc(r.supplier),`<span class="tag t-amb">${esc(r.status)}</span>`,dstr(r.due)+(r.late?` <span class="tag t-red">${r.daysLate} ימי איחור</span>`:''),money(r.openILS),esc(r.buyer)]),
+    raw:unapproved});
+  // 3. approaching due, nothing received
+  const soon=rows.filter(r=>!r.late&&r.daysLate!=null&&r.daysLate>=-21&&(r.qtyRec||0)===0&&r.openILS>=20000)
+    .sort((a,b)=>b.openILS-a.openILS).slice(0,15);
+  out.push({id:'soon',sev:'amb',title:'מתקרב לתאריך היעד ללא אספקה כלשהי',
+    why:'אספקה בתוך 21 יום, מעל ₪20K, וטרם התקבלה אף יחידה. כאן עוד אפשר למנוע את האיחור.',
+    cols:['הזמנה','ספק','תיאור','ת. אספקה','בעוד','שווי יתרה'],
+    rows:soon.map(r=>[esc(r.po),esc(r.supplier),esc((r.desc||'').slice(0,46)),dstr(r.due),(-r.daysLate)+' ימים',money(r.openILS)]),
+    raw:soon});
+  // 4. closure candidates
+  const close=rows.filter(r=>(r.openILS<=0&&(r.qtyOpen||0)>0)||((r.qtyRec||0)>0&&r.pct>=98&&r.late)||(r.late&&r.daysLate>365&&r.openILS<5000))
+    .sort((a,b)=>b.daysLate-a.daysLate).slice(0,20);
+  out.push({id:'close',sev:'sea',title:'מועמדות לסגירה ידנית ב־Priority',
+    why:'יתרה אפסית בשווי, אספקה כמעט מלאה שנותרה פתוחה, או שאריות קטנות באיחור של למעלה משנה. סגירתן מנקה את הדוח ומשחררת התחייבות.',
+    cols:['הזמנה','ספק','תיאור','ת. אספקה','ימי איחור','סופק','יתרה ₪'],
+    rows:close.map(r=>[esc(r.po),esc(r.supplier),esc((r.desc||'').slice(0,42)),dstr(r.due),r.late?r.daysLate:'—',r.pct.toFixed(0)+'%',money(r.openILS)]),
+    raw:close});
+  // 5. stale orders
+  const stale=rows.filter(r=>r.orderDate&&dayDiff(r.orderDate,T)>365).sort((a,b)=>b.openILS-a.openILS).slice(0,15);
+  out.push({id:'stale',sev:'sea',title:'הזמנות שנפתחו לפני יותר משנה ועדיין פתוחות',
+    why:'מחיר, מפרט וצורך אמיתי כבר ראויים לבדיקה מחדש מול הספק.',
+    cols:['הזמנה','נפתחה','ספק','סטטוס','ת. אספקה','שווי יתרה'],
+    rows:stale.map(r=>[esc(r.po),dstr(r.orderDate),esc(r.supplier),esc(r.status),dstr(r.due),money(r.openILS)]),
+    raw:stale});
+  return out;
+}
+function renderRec(){
+  const recs=recommendations(),p=$('#p-rec');
+  p.innerHTML=`<div class="sec"><div class="sec-h"><h2>מה לעשות הבוקר</h2>
+    <p>חמש רשימות עבודה שנגזרות מהדוח שנטען ומהסינון הפעיל${S.f.buyers.size?' (קניינים: '+[...S.f.buyers].map(esc).join(', ')+')':''}. כל רשימה מיוצאת בנפרד לאקסל.</p>
+    ${refreshBtn('','רענון')}</div></div>`
+  +recs.map(r=>`<div class="rec sev-${r.sev}">
+      <div class="rec-h"><h3>${r.title}</h3><span class="why">${r.why}</span>
+        <span class="cnt">${nf0.format(r.rows.length)} פריטים</span>
+        <button class="btn btn-sm" data-x="${r.id}">ייצוא</button></div>
+      <div class="rec-b">${r.rows.length?`<div class="tscroll" style="border:0"><table><thead><tr>${r.cols.map(c=>`<th style="cursor:default">${c}</th>`).join('')}</tr></thead>
+        <tbody>${r.rows.map(row=>'<tr>'+row.map((c,i)=>`<td class="${i>=r.cols.length-1?'ta-e':''}">${c}</td>`).join('')+'</tr>').join('')}</tbody></table></div>`
+        :'<div class="empty">אין ממצאים בקטגוריה זו. זה סימן טוב.</div>'}</div></div>`).join('');
+  p.querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>{
+    const r=recs.find(x=>x.id===b.dataset.x); exportRows(r.raw,r.title);
+  });
+}
+
+function renderSup(){
+  const rows=filtered(),p=$('#p-sup');
+  let g=group(rows,r=>r.supplier).map(x=>{
+    const onTime=x.rows.length-x.late;
+    return {...x,otd:x.rows.length?onTime/x.rows.length*100:0,
+      skus:new Set(x.rows.map(r=>r.sku)).size,pos:new Set(x.rows.map(r=>r.po)).size,
+      avgLate:x.late?Math.round(sum(x.rows.filter(r=>r.late),'daysLate')/x.late):0};
+  }).sort((a,b)=>b.val-a.val);
+  p.innerHTML=`<div class="sec"><div class="sec-h"><h2>ביצועי ספקים (${nf0.format(g.length)})</h2>
+    <p>מדורג לפי היקף היתרה הפתוחה. ניתן למיין בלחיצה על כותרת${S.f.buyers.size?' · קניינים: '+[...S.f.buyers].map(esc).join(', '):''}.</p>
+    ${refreshBtn('','רענון')}
+    <button class="btn btn-sm" id="xSup">ייצוא לאקסל</button></div>
+    <div class="note" style="margin:0 0 10px">שיעור העמידה בזמנים מחושב מתוך השורות הפתוחות בדוח זה — דוח ה-Priority אינו כולל תאריכי קבלה בפועל, ולכן הוא מודד כמה מההתחייבות הנוכחית חורגת מהתאריך המובטח, ולא היסטוריית אספקות שנסגרו.</div>
+    <div class="tscroll"><table id="supT"><thead><tr>
+      <th data-k="k">ספק</th><th data-k="pos">הזמנות</th><th data-k="skus">מק״טים</th><th data-k="rows">שורות</th>
+      <th data-k="val" class="ta-e">יתרה פתוחה</th><th data-k="late">באיחור</th><th data-k="avgLate">איחור ממוצע</th><th data-k="otd">בזמן</th></tr></thead>
+    <tbody>${g.slice(0,200).map(x=>`<tr class="${x.late&&x.otd<50?'late':''}"><td>${esc(x.k)}<span class="sub">${esc(uniq(x.rows,'buyer')[0][0])}</span></td>
+      <td class="num">${x.pos}</td><td class="num">${x.skus}</td><td class="num">${x.rows.length}</td>
+      <td class="ta-e num">${money(x.val)}</td>
+      <td>${x.late?`<span class="tag t-red">${x.late} · ${short(x.lateVal)}</span>`:'<span style="color:var(--faint)">—</span>'}</td>
+      <td class="num">${x.avgLate?x.avgLate+' ימים':'—'}</td>
+      <td><div style="display:flex;align-items:center;gap:7px"><div class="bar-track" style="width:52px"><div class="bar-fill ${x.otd>=80?'moss':x.otd>=50?'amb':'red'}" style="width:${x.otd}%"></div></div><span class="num" style="font-size:12px">${x.otd.toFixed(0)}%</span></div></td>
+      </tr>`).join('')}</tbody></table></div>
+      ${g.length>200?`<div class="note">מוצגים 200 הספקים הגדולים מתוך ${nf0.format(g.length)}. ייצוא לאקסל כולל את כולם.</div>`:''}</div>`;
+  p.querySelectorAll('#supT th').forEach(th=>th.onclick=()=>{
+    const k=th.dataset.k;
+    const val=o=>k==='rows'?o.rows.length:o[k];
+    g.sort((a,b)=>{const x=val(a),y=val(b);
+      return typeof x==='number'?y-x:String(x).localeCompare(String(y),'he');});
+    renderSupBody(g);
+  });
+  function renderSupBody(list){
+    const tb=$('#supT tbody');
+    tb.innerHTML=list.slice(0,200).map(x=>`<tr class="${x.late&&x.otd<50?'late':''}"><td>${esc(x.k)}<span class="sub">${esc(uniq(x.rows,'buyer')[0][0])}</span></td>
+      <td class="num">${x.pos}</td><td class="num">${x.skus}</td><td class="num">${x.rows.length}</td>
+      <td class="ta-e num">${money(x.val)}</td>
+      <td>${x.late?`<span class="tag t-red">${x.late} · ${short(x.lateVal)}</span>`:'<span style="color:var(--faint)">—</span>'}</td>
+      <td class="num">${x.avgLate?x.avgLate+' ימים':'—'}</td>
+      <td><div style="display:flex;align-items:center;gap:7px"><div class="bar-track" style="width:52px"><div class="bar-fill ${x.otd>=80?'moss':x.otd>=50?'amb':'red'}" style="width:${x.otd}%"></div></div><span class="num" style="font-size:12px">${x.otd.toFixed(0)}%</span></div></td></tr>`).join('');
+  }
+  $('#xSup').onclick=()=>exportAoa([['ספק','קניין מוביל','הזמנות','מק״טים','שורות','יתרה ₪','שורות באיחור','שווי באיחור ₪','איחור ממוצע (ימים)','% בזמן']]
+    .concat(g.map(x=>[x.k,uniq(x.rows,'buyer')[0][0],x.pos,x.skus,x.rows.length,Math.round(x.val),x.late,Math.round(x.lateVal),x.avgLate,+x.otd.toFixed(1)])),'ביצועי ספקים');
+}
+
+/* ============================================================
+   מודול ספקים — קובץ אב נפרד מקובץ ההזמנות
+   ============================================================ */
+const SUP_ALIAS={
+  no:['מסספק','מספרספק','קודספק'],
+  name:['שםספק','ספק'],
+  nameEn:['שםלועזי'],
+  payTerm:['תנאיתשלום1','תאורתנאיתשלום'],
+  payCode:['תנאיתשלום'],
+  type:['תאורסוגספק'],
+  curr:['מטבע'],
+  buyer:['לטיפול','קניין','קנין'],
+  status:['סטטוס'],
+  opened:['תאריךפתיחה'],
+  phone:['טלפון'],fax:['פקס'],email:['email','emailאימייל','דואראלקטרוני','mail'],
+  addr:['כתובת'],city:['עיר'],country:['ארץ','country'],
+  vat:['מסעוסקמורשה','עוסקמורשה','חפ'],taxFile:['מספרתיקבמעמ','תיקמעמ'],
+  web:['WebSite','אתר'],
+  score:['סקור'],credit:['המלצתאשראי'],sector:['סקורענפי'],
+  cls:['סיווגתאור','תאורסיווג'],clsCode:['קודסיווגראשי'],
+  inco:['תנאייבוא'],qa:['דורשאישוראיכות'],freight:['חברתשילוחעמילמכס'],
+  standing:['תשלוםבהוראתקבע'],attach:['נספחים'],ordKind:['תאורסוגהזמנתרכש'],reqOrd:['דרישההזמנה']
+};
+const SUP_NUM=['score','credit','sector','clsCode'];
+const SUP_LABEL={no:'מס׳ ספק',name:'שם ספק',nameEn:'שם לועזי',payTerm:'תנאי תשלום',payCode:'קוד תנאי תשלום',
+  type:'סוג ספק',curr:'מטבע',buyer:'קניין מטפל',status:'סטטוס',opened:'תאריך פתיחה',phone:'טלפון',fax:'פקס',
+  email:'דוא״ל',addr:'כתובת',city:'עיר',country:'ארץ',vat:'עוסק מורשה',taxFile:'תיק מע״מ',web:'אתר',
+  score:'סקור אשראי',credit:'המלצת אשראי',sector:'סקור ענפי',cls:'סיווג ענפי',clsCode:'קוד סיווג',
+  inco:'תנאי יבוא',qa:'דורש אישור איכות',freight:'עמיל מכס/שילוח',standing:'הוראת קבע',attach:'נספחים',
+  ordKind:'סוג הזמנת רכש',reqOrd:'דרישה/הזמנה'};
+const SUP_OK='פעיל';
+
+function deriveSup(list){
+  list.forEach(s=>{
+    SUP_NUM.forEach(k=>{if(typeof s[k]==='string')s[k]=toNum(s[k]);});
+    s.active=(s.status===SUP_OK);
+    s.blocked=!!(s.status&&s.status!==SUP_OK&&s.status!=='טיוטא');
+    s.year=s.opened?+s.opened.slice(0,4):null;
+    s.local=(s.country||'')==='Israel'||!s.country;
+    s.hay=((s.no||'')+' '+(s.name||'')+' '+(s.nameEn||'')+' '+(s.email||'')+' '+(s.city||'')+' '+(s.country||'')+' '+(s.cls||'')+' '+(s.type||'')+' '+(s.vat||'')+' '+(s.buyer||'')+' '+(s.phone||'')).toLowerCase();
+    s.gaps=[];
+    if(!s.email)s.gaps.push('דוא״ל');
+    if(!s.phone)s.gaps.push('טלפון');
+    if(!s.vat)s.gaps.push('עוסק מורשה');
+    if(!s.cls)s.gaps.push('סיווג ענפי');
+    if(s.score==null)s.gaps.push('סקור אשראי');
+  });
+  return list;
+}
+const seedSup=JSON.parse($('#seedSup').textContent);
+function fromSeedSup(){return seedSup.rows.map(a=>{const o={};seedSup.keys.forEach((k,i)=>o[k]=a[i]);return o;});}
+
+function newSupFilters(){return{status:new Set(),type:new Set(),buyer:new Set(),country:new Set(),q:'',onlyOpen:false,onlyGaps:false};}
+function cloneSupF(f){return{status:new Set(f.status),type:new Set(f.type),buyer:new Set(f.buyer),country:new Set(f.country),q:f.q,onlyOpen:f.onlyOpen,onlyGaps:f.onlyGaps};}
+
+/* חשיפת הזמנות פתוחות לכל ספק — החיבור היחיד בין שני הקבצים, לפי מס' ספק */
+function poBySupplier(){
+  const m=new Map();
+  S.rows.forEach(r=>{
+    const k=(r.supplierNo||'').trim(); if(!k)return;
+    let g=m.get(k); if(!g){g={lines:0,val:0,late:0,lateVal:0,bad:0,pos:new Set(),rows:[]};m.set(k,g);}
+    g.lines++;g.val+=r.openILS||0;g.pos.add(r.po);g.rows.push(r);
+    if(r.late){g.late++;g.lateVal+=r.openILS||0;}
+    if(isBad(r))g.bad++;
+  });
+  return m;
+}
+function supFiltered(){
+  const f=S.sf,q=f.q.toLowerCase().trim(),po=poBySupplier();
+  return S.sup.filter(s=>{
+    if(f.status.size&&!f.status.has(s.status||'—'))return false;
+    if(f.type.size&&!f.type.has(s.type||'—'))return false;
+    if(f.buyer.size&&!f.buyer.has(s.buyer||'—'))return false;
+    if(f.country.size&&!f.country.has(s.country||'—'))return false;
+    if(f.onlyOpen&&!po.has(s.no))return false;
+    if(f.onlyGaps&&!s.gaps.length)return false;
+    if(q&&s.hay.indexOf(q)<0)return false;
+    return true;
+  });
+}
+function supBar(){
+  const d=S.sd;
+  const mk=(id,key,label,items)=>`<div class="fgrp" style="flex:1 1 230px"><span class="flab">${label}${d[key].size?' ('+d[key].size+')':''}</span>
+    <div class="chips" id="${id}">${items.map(([k,n])=>`<button class="chip" data-v="${esc(k)}" aria-pressed="${d[key].has(k)}">${esc(k)}<span class="n">${n}</span></button>`).join('')}</div></div>`;
+  return `<div class="filters">
+    <div class="fgrp" style="flex:1 1 200px"><label class="flab" for="sfq">חיפוש ספק</label>
+      <input type="search" id="sfq" placeholder="שם, מס׳ ספק, ח.פ, דוא״ל, עיר…" value="${esc(d.q)}"></div>
+    ${mk('sfStatus','status','סטטוס',uniq(S.sup,'status'))}
+    ${mk('sfType','type','סוג ספק',uniq(S.sup,'type').slice(0,16))}
+    ${mk('sfBuyer','buyer','קניין מטפל',uniq(S.sup,'buyer'))}
+    ${mk('sfCountry','country','ארץ',uniq(S.sup,'country').slice(0,14))}
+    <div class="fgrp" style="flex:0 1 auto">
+      <label class="ck"><input type="checkbox" id="sfOpen" ${d.onlyOpen?'checked':''}> רק עם הזמנות פתוחות</label>
+      <label class="ck"><input type="checkbox" id="sfGaps" ${d.onlyGaps?'checked':''}> רק עם נתונים חסרים</label>
+    </div>
+    <div class="fgrp" style="flex:0 1 auto;align-self:flex-end;display:flex;gap:6px">
+      ${refreshBtn('','רענון תצוגה')}<button class="btn btn-sm" id="sfClear">איפוס סינון</button></div>
+  </div>`;
+}
+function bindSupBar(){
+  const d=S.sd,q=$('#sfq');
+  if(q){q.oninput=()=>{d.q=q.value;markDirty();};q.onkeydown=e=>{if(e.key==='Enter')applySupFilters();};}
+  bindChips($('#sfStatus'),d.status);bindChips($('#sfType'),d.type);
+  bindChips($('#sfBuyer'),d.buyer);bindChips($('#sfCountry'),d.country);
+  const a=$('#sfOpen');if(a)a.onchange=e=>{d.onlyOpen=e.target.checked;markDirty();};
+  const b=$('#sfGaps');if(b)b.onchange=e=>{d.onlyGaps=e.target.checked;markDirty();};
+  const c=$('#sfClear');if(c)c.onclick=()=>{S.sd=newSupFilters();applySupFilters();};
+}
+function applySupFilters(){S.sf=cloneSupF(S.sd);S.dirty=false;S.limit=150;render();}
+
+const SUP_EXPORT=['no','name','status','type','buyer','payTerm','curr','country','city','phone','email','vat','taxFile','cls','score','credit','opened','web'];
+function exportSuppliers(list,name){
+  const po=poBySupplier();
+  const aoa=[SUP_EXPORT.map(k=>SUP_LABEL[k]).concat(['שורות פתוחות','יתרה ₪','באיחור'])];
+  list.forEach(s=>{const g=po.get(s.no);
+    aoa.push(SUP_EXPORT.map(k=>k==='opened'?(s[k]?dstr(s[k]):''):(s[k]==null?'':s[k]))
+      .concat([g?g.lines:0,g?Math.round(g.val):0,g?g.late:0]));});
+  exportAoa(aoa,name);
+}
+
+/* ---------- סקירת ספקים ---------- */
+function renderSupOverview(){
+  const p=$('#p-sover'),list=supFiltered(),po=poBySupplier();
+  const act=list.filter(s=>s.active),blocked=list.filter(s=>s.blocked);
+  const withPo=list.filter(s=>po.has(s.no));
+  const expo=withPo.reduce((t,s)=>t+po.get(s.no).val,0);
+  const byType=uniq(list,'type'),byStatus=uniq(list,'status'),byPay=uniq(list,'payTerm'),byCountry=uniq(list,'country');
+  const byYear=uniq(list.filter(s=>s.year),'year').sort((a,b)=>a[0]-b[0]);
+  const scored=list.filter(s=>s.score!=null);
+  p.innerHTML=`
+  <div class="sec">${supBar()}</div>
+  <div class="sec grid3">
+    <div class="box box-p"><div class="gauge-k">ספקים בתצוגה</div><div class="gauge-v">${nf0.format(list.length)}</div>
+      <div class="gauge-s">מתוך ${nf0.format(S.sup.length)} בקובץ האב</div></div>
+    <div class="box box-p"><div class="gauge-k">פעילים</div><div class="gauge-v" style="color:var(--moss)">${nf0.format(act.length)}</div>
+      <div class="gauge-s">${list.length?(act.length/list.length*100).toFixed(0):0}% · ${nf0.format(blocked.length)} לא פעילים או חסומים</div></div>
+    <div class="box box-p"><div class="gauge-k">ספקים עם הזמנות פתוחות</div><div class="gauge-v">${nf0.format(withPo.length)}</div>
+      <div class="gauge-s">${money(expo)} חשיפה · ${list.length?(withPo.length/list.length*100).toFixed(0):0}% מהספקים</div></div>
+    <div class="box box-p"><div class="gauge-k">סקור אשראי ממוצע</div><div class="gauge-v">${scored.length?nf0.format(Math.round(scored.reduce((t,s)=>t+s.score,0)/scored.length)):'—'}</div>
+      <div class="gauge-s">${nf0.format(scored.length)} ספקים עם סקור · ${nf0.format(list.length-scored.length)} ללא</div></div>
+    <div class="box box-p"><div class="gauge-k">ספקי חו״ל</div><div class="gauge-v">${nf0.format(list.filter(s=>s.country&&s.country!=='Israel').length)}</div>
+      <div class="gauge-s">${nf0.format(byCountry.filter(c=>c[0]!=='Israel'&&c[0]!=='—').length)} מדינות</div></div>
+    <div class="box box-p"><div class="gauge-k">רשומות עם חוסרים</div><div class="gauge-v" style="color:var(--amber)">${nf0.format(list.filter(s=>s.gaps.length).length)}</div>
+      <div class="gauge-s">דוא״ל, טלפון, ח.פ, סיווג או סקור</div></div>
+  </div>
+
+  <div class="sec grid2">
+    <div class="box box-p"><div class="chart-t">התפלגות סטטוס</div><div class="chart-s">מספר ספקים</div>
+      <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">
+        ${donut(byStatus.map(([k,v])=>({k,v,c:k===SUP_OK?'var(--moss)':k==='לא פעיל'?'var(--steel)':'var(--red)'})),152)}
+        <div class="legend" style="flex:1">${byStatus.map(([k,v])=>`<div><span class="sw" style="background:${k===SUP_OK?'var(--moss)':k==='לא פעיל'?'var(--steel)':'var(--red)'}"></span>${esc(k)}<span class="lv">${nf0.format(v)}</span></div>`).join('')}</div>
+      </div></div>
+    <div class="box box-p"><div class="chart-t">סוגי ספקים</div><div class="chart-s">הקטגוריה הראשית בכרטיס הספק ב-Priority</div>
+      ${bars(byType.slice(0,12).map(([k,v])=>({k,v,lab:nf0.format(v),cls:'moss'})))}</div>
+  </div>
+
+  <div class="sec grid2">
+    <div class="box box-p"><div class="chart-t">תנאי תשלום</div><div class="chart-s">כמה ספקים בכל תנאי — בסיס לניהול תזרים</div>
+      ${bars(byPay.slice(0,12).map(([k,v])=>({k,v,lab:nf0.format(v)})))}</div>
+    <div class="box box-p"><div class="chart-t">ארצות מקור</div><div class="chart-s">${nf0.format(list.filter(s=>s.country==='Israel').length)} ספקים מישראל</div>
+      ${bars(byCountry.filter(c=>c[0]!=='Israel').slice(0,12).map(([k,v])=>({k,v,lab:nf0.format(v),cls:'amb'})))}</div>
+  </div>
+
+  <div class="sec"><div class="box box-p"><div class="chart-t">פתיחת ספקים לפי שנה</div>
+    <div class="chart-s">קצב גיוס ספקים חדשים למערכת</div>
+    <div style="overflow-x:auto">${byYear.length?columns(byYear.map(([k,v])=>({k:String(k),lab:String(k),v,vlab:nf0.format(v),c:'var(--brand)'}))):''}</div>
+</div></div>
+
+  <div class="sec">
+    <div class="sec-h"><h2>רשימת ספקים (${nf0.format(list.length)})</h2>
+      <p>לחיצה על שורה פותחת את כרטיס הספק המלא.</p>
+      <button class="btn btn-sm" id="xSov">ייצוא לאקסל</button></div>
+    <div class="tscroll"><table><thead><tr>
+      <th style="cursor:default">ספק</th><th style="cursor:default">סטטוס</th><th style="cursor:default">סוג</th>
+      <th style="cursor:default">תנאי תשלום</th><th style="cursor:default">ארץ</th><th style="cursor:default">קניין</th>
+      <th style="cursor:default" class="ta-e">סקור</th><th style="cursor:default" class="ta-e">המלצת אשראי</th>
+      <th style="cursor:default" class="ta-e">חשיפה פתוחה</th></tr></thead><tbody>
+      ${list.slice(0,S.limit).map(s=>{const g=po.get(s.no);return `<tr class="clickrow" data-s="${esc(s.no)}">
+        <td>${esc(s.name||'')}<span class="sub">${esc(s.no)}${s.city?' · '+esc(s.city):''}</span></td>
+        <td><span class="tag ${s.active?'t-moss':s.status==='לא פעיל'?'t-mute':'t-red'}">${esc(s.status||'—')}</span></td>
+        <td>${esc(s.type||'—')}<span class="sub">${esc((s.cls||'').slice(0,26))}</span></td>
+        <td>${esc(s.payTerm||'—')}</td><td>${esc(s.country||'—')}</td><td>${esc(s.buyer||'—')}</td>
+        <td class="ta-e num">${s.score==null?'—':s.score}</td>
+        <td class="ta-e num">${s.credit==null?'—':money(s.credit)}</td>
+        <td class="ta-e">${g?`<span class="num">${money(g.val)}</span><span class="sub">${g.lines} שורות${g.late?' · '+g.late+' באיחור':''}</span>`:'<span style="color:var(--faint)">—</span>'}</td>
+      </tr>`;}).join('')}
+    </tbody></table></div>
+    ${list.length>S.limit?`<div class="more"><button class="btn" id="smore">הצגת 150 נוספים (${nf0.format(list.length-S.limit)} נותרו)</button></div>`:''}
+    ${!list.length?'<div class="box empty"><b>אין ספקים התואמים לסינון</b>נקו את הסינון או טענו קובץ ספקים אחר.</div>':''}
+  </div>`;
+  bindSupBar();
+  const sm=$('#smore');if(sm)sm.onclick=()=>{S.limit+=150;render();};
+  p.querySelectorAll('.clickrow').forEach(tr=>tr.onclick=()=>{S.supSel=tr.dataset.s;S.tab='scard';render();window.scrollTo({top:0,behavior:'smooth'});});
+  $('#xSov').onclick=()=>exportSuppliers(list,'ספקים');
+}
+
+/* ---------- כרטיס ספק ---------- */
+const SUP_CLASS=['אסטרטגי','שוטף','חד־פעמי'];
+const SUP_STATE=['מאושר','בבדיקה','חסום'];
+function supMeta(k){return S.supMeta[k]||{};}
+function setSupMeta(k,patch){
+  S.supMeta[k]=Object.assign({},S.supMeta[k]||{},patch);
+  try{store('supmeta',S.supMeta);}catch(e){toast('לא ניתן לשמור בדפדפן');}
+}
+function renderSupCard(){
+  const p=$('#p-scard'),all=supFiltered(),po=poBySupplier();
+  const q=S.supQ.toLowerCase().trim();
+  const list=all.filter(s=>!q||s.hay.indexOf(q)>-1);
+  if(!S.supSel||!all.some(s=>s.no===S.supSel))S.supSel=list.length?list[0].no:null;
+  const cur=all.find(s=>s.no===S.supSel);
+  p.innerHTML=`<div class="sec">
+    <div class="sec-h"><h2>כרטיס ספק</h2>
+      <p>כל שדות האב מ-Priority, החשיפה הפתוחה של אותו ספק מדוח ההזמנות, ושדות פנימיים שאתם מתחזקים בעצמכם.</p>
+      ${refreshBtn('','רענון')}<button class="btn btn-sm" id="xCard">ייצוא כרטיס</button></div>
+  </div>
+  <div class="sec" style="display:grid;grid-template-columns:minmax(220px,290px) 1fr;gap:16px;align-items:start">
+    <div class="box" style="overflow:hidden">
+      <div style="padding:11px 12px;border-bottom:1px solid var(--line)">
+        <input type="search" id="sq" placeholder="חיפוש בתוך ${nf0.format(all.length)} ספקים…" value="${esc(S.supQ)}"></div>
+      <div style="max-height:640px;overflow-y:auto">
+        ${list.length?list.slice(0,400).map(s=>{const g=po.get(s.no);return `<button class="suprow ${s.no===S.supSel?'on':''}" data-s="${esc(s.no)}">
+          <span class="sname">${esc(s.name||s.no)}</span>
+          <span class="smeta">${esc(s.type||'—')}${g?' · '+money(g.val):''}</span>
+          <span style="display:flex;gap:4px;margin-top:3px">
+            <span class="tag ${s.active?'t-moss':s.status==='לא פעיל'?'t-mute':'t-red'}">${esc(s.status||'—')}</span>
+            ${g&&g.late?`<span class="tag t-red">${g.late} באיחור</span>`:''}</span>
+        </button>`;}).join(''):'<div class="empty">לא נמצא ספק תואם.</div>'}
+      </div>
+    </div>
+    <div id="supCard"></div>
+  </div>`;
+  const sq=$('#sq');sq.oninput=()=>{S.supQ=sq.value;const pos=sq.selectionStart;renderSupCard();bindRefresh();const n=$('#sq');if(n){n.focus();try{n.setSelectionRange(pos,pos);}catch(e){}}};
+  p.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>{S.supSel=b.dataset.s;renderSupCard();bindRefresh();});
+  const card=$('#supCard');
+  if(!cur){card.innerHTML='<div class="box empty"><b>לא נבחר ספק</b>בחרו ספק מהרשימה.</div>';
+    $('#xCard').onclick=()=>toast('לא נבחר ספק');return;}
+  const g=po.get(cur.no),m=supMeta(cur.no);
+  const fld=k=>cur[k]==null||cur[k]===''?'<span style="color:var(--faint)">—</span>':
+    (k==='opened'?dstr(cur[k]):k==='credit'?money(cur[k]):k==='web'?`<span dir="ltr">${esc(cur[k])}</span>`:
+     k==='email'?`<a href="mailto:${esc(cur[k])}" dir="ltr" style="color:var(--brand)">${esc(cur[k])}</a>`:esc(cur[k]));
+  const master=['no','name','nameEn','status','type','cls','buyer','opened','payTerm','curr','inco',
+    'phone','fax','email','web','addr','city','country','vat','taxFile','score','credit','sector',
+    'qa','freight','standing','attach','ordKind','reqOrd'];
+  card.innerHTML=`
+  <div class="box box-p" style="margin-bottom:16px">
+    <div style="display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;margin-bottom:4px">
+      <h2 style="font-size:20px">${esc(cur.name||cur.no)}</h2>
+      <span class="tag ${cur.active?'t-moss':cur.status==='לא פעיל'?'t-mute':'t-red'}">${esc(cur.status||'—')}</span>
+      <span style="color:var(--steel);font-size:12.5px">${esc(cur.no)}${cur.nameEn?' · '+esc(cur.nameEn):''}</span>
+    </div>
+    ${cur.gaps.length?`<div class="note" style="color:var(--amber)">חסרים בכרטיס: ${cur.gaps.map(esc).join(', ')}</div>`:''}
+    <div class="grid3" style="gap:12px;margin:14px 0 4px">
+      <div><div class="gauge-k">חשיפה פתוחה</div><div class="gauge-v" style="font-size:24px">${g?money(g.val):'₪0'}</div>
+        <div class="gauge-s">${g?g.pos.size+' הזמנות · '+g.lines+' שורות':'אין הזמנות פתוחות בדוח'}</div></div>
+      <div><div class="gauge-k">באיחור</div><div class="gauge-v" style="font-size:24px;color:${g&&g.late?'var(--red)':'var(--moss)'}">${g?nf0.format(g.late):'0'}</div>
+        <div class="gauge-s">${g&&g.late?money(g.lateVal)+' תקועים':'אין חריגה מהתאריך'}</div></div>
+      <div><div class="gauge-k">מול המלצת אשראי</div>
+        <div class="gauge-v" style="font-size:24px;color:${g&&cur.credit>0&&g.val>cur.credit?'var(--red)':'var(--ink)'}">${cur.credit==null?'—':(g&&cur.credit>0?(g.val/cur.credit*100).toFixed(0)+'%':'0%')}</div>
+        <div class="gauge-s">${cur.credit==null?'אין נתון אשראי':'תקרה '+money(cur.credit)+' · סקור '+(cur.score==null?'—':cur.score)}</div></div>
+    </div>
+  </div>
+
+  <div class="box box-p" style="margin-bottom:16px">
+    <div class="chart-t">נתוני אב מ-Priority</div><div class="chart-s">לקריאה בלבד; מתעדכנים בטעינת קובץ ספקים חדש</div>
+    <div class="kvgrid">${master.map(k=>`<div class="kv"><span class="kvk">${SUP_LABEL[k]}</span><span class="kvv">${fld(k)}</span></div>`).join('')}</div>
+  </div>
+
+  <div class="box box-p" style="margin-bottom:16px">
+    <div class="chart-t">שדות פנימיים של מחלקת הרכש</div><div class="chart-s">נשמרים בדפדפן לפי מספר הספק ושורדים טעינת קבצים חדשים</div>
+    <div class="fgrid" style="margin-top:10px">
+      <label><span class="flab">סיווג פנימי</span><select data-f="cls"><option value="">—</option>${SUP_CLASS.map(x=>`<option ${m.cls===x?'selected':''}>${x}</option>`).join('')}</select></label>
+      <label><span class="flab">סטטוס התקשרות</span><select data-f="state"><option value="">—</option>${SUP_STATE.map(x=>`<option ${m.state===x?'selected':''}>${x}</option>`).join('')}</select></label>
+      <label><span class="flab">איש קשר</span><input type="text" data-f="contact" value="${esc(m.contact||'')}"></label>
+      <label><span class="flab">טלפון ישיר</span><input type="text" data-f="phone" value="${esc(m.phone||'')}"></label>
+      <label><span class="flab">תוקף אישור ניכוי מס</span><input type="text" data-f="taxValid" placeholder="dd/mm/yyyy" value="${esc(m.taxValid||'')}"></label>
+      <label><span class="flab">תוקף ביטוח</span><input type="text" data-f="insValid" placeholder="dd/mm/yyyy" value="${esc(m.insValid||'')}"></label>
+      <label style="grid-column:1/-1"><span class="flab">הערות רכש</span><input type="text" data-f="note" value="${esc(m.note||'')}"></label>
+    </div>
+  </div>
+
+  ${g?`<div class="box box-p" style="margin-bottom:16px">
+    <div class="chart-t">סטטוסי ההזמנות אצל הספק</div><div class="chart-s">שווי יתרה פתוחה לפי סטטוס</div>
+    ${bars(group(g.rows,r=>r.status).sort((a,b)=>b.val-a.val).map(x=>({k:x.k+' · '+x.rows.length+' שורות',v:x.val,lab:money(x.val),cls:isBad(x.k)?'amb':'moss'})))}
+  </div>
+  <div class="sec-h"><h2 style="font-size:15px">הזמנות פתוחות (${g.lines})</h2>
+    <button class="btn btn-sm" id="xSupOne">ייצוא</button></div>
+  <div id="sctbl"></div>`
+  :'<div class="box empty"><b>אין הזמנות פתוחות</b>הספק קיים בקובץ האב אך אין לו שורות פתוחות בדוח ההזמנות הנוכחי.</div>'}`;
+  if(g){renderTable(g.rows,$('#sctbl'));
+    $('#xSupOne').onclick=()=>exportRows(sortRows(g.rows),'ספק '+(cur.name||cur.no));}
+  card.querySelectorAll('[data-f]').forEach(inp=>{
+    const ev=inp.tagName==='SELECT'?'onchange':'oninput';
+    inp[ev]=()=>setSupMeta(cur.no,{[inp.dataset.f]:inp.value});});
+  $('#xCard').onclick=()=>exportSuppliers([cur],'כרטיס '+(cur.name||cur.no));
+}
+
+/* ---------- סיכוני ספקים ואיכות נתונים ---------- */
+function renderSupRisk(){
+  const p=$('#p-srisk'),list=supFiltered(),po=poBySupplier();
+  const withPo=list.filter(s=>po.has(s.no));
+  const blocks=[];
+  const notActive=withPo.filter(s=>!s.active)
+    .map(s=>[esc(s.name),`<span class="tag t-red">${esc(s.status)}</span>`,esc(s.buyer||''),money(po.get(s.no).val),po.get(s.no).lines]);
+  blocks.push({id:'na',sev:'red',title:'ספקים שאינם פעילים ויש להם הזמנות פתוחות',
+    why:'סטטוס חסום, לא פעיל או צו עיקול בכרטיס הספק, בזמן שיש אליו התחייבות פתוחה. זה חוסם תשלום ועלול לעצור אספקה.',
+    cols:['ספק','סטטוס','קניין','חשיפה','שורות'],rows:notActive,raw:withPo.filter(s=>!s.active)});
+  const over=withPo.filter(s=>s.credit>0&&po.get(s.no).val>s.credit)
+    .sort((a,b)=>po.get(b.no).val-po.get(a.no).val);
+  blocks.push({id:'cr',sev:'red',title:'חשיפה מעבר להמלצת האשראי',
+    why:'היתרה הפתוחה מול הספק גבוהה מהמלצת האשראי שבכרטיס שלו. שווה לבדוק פיצול הזמנות, ערבות או תנאי תשלום.',
+    cols:['ספק','חשיפה פתוחה','המלצת אשראי','יחס','סקור','תנאי תשלום'],
+    rows:over.slice(0,20).map(s=>{const v=po.get(s.no).val;return[esc(s.name),money(v),money(s.credit),
+      `<span class="tag ${v>s.credit*3?'t-red':'t-amb'}">${(v/s.credit*100).toFixed(0)}%</span>`,s.score==null?'—':s.score,esc(s.payTerm||'—')];}),raw:over});
+  const noCredit=withPo.filter(s=>s.credit==null&&po.get(s.no).val>100000)
+    .sort((a,b)=>po.get(b.no).val-po.get(a.no).val);
+  blocks.push({id:'nc',sev:'amb',title:'חשיפה גבוהה ללא נתוני אשראי',
+    why:'מעל ₪100K פתוחים מול ספק שאין לו סקור או המלצת אשראי בכרטיס. רובם ספקי חו״ל שלא נסקרו.',
+    cols:['ספק','ארץ','סוג','חשיפה פתוחה','תנאי תשלום'],
+    rows:noCredit.slice(0,20).map(s=>[esc(s.name),esc(s.country||'—'),esc(s.type||'—'),money(po.get(s.no).val),esc(s.payTerm||'—')]),raw:noCredit});
+  const low=withPo.filter(s=>s.score!=null&&s.score<35).sort((a,b)=>po.get(b.no).val-po.get(a.no).val);
+  blocks.push({id:'ls',sev:'amb',title:'סקור אשראי נמוך עם חשיפה פעילה',
+    why:'סקור מתחת ל-35 מצביע על סיכון פיננסי. בדקו מקדמות או ספק חלופי לפני הזמנה נוספת.',
+    cols:['ספק','סקור','סקור ענפי','המלצת אשראי','חשיפה פתוחה'],
+    rows:low.map(s=>[esc(s.name),`<span class="tag t-amb">${s.score}</span>`,s.sector==null?'—':s.sector,s.credit==null?'—':money(s.credit),money(po.get(s.no).val)]),raw:low});
+  const gaps=list.filter(s=>s.active&&s.gaps.length).sort((a,b)=>b.gaps.length-a.gaps.length);
+  blocks.push({id:'dq',sev:'sea',title:'איכות נתונים בכרטיסי ספקים פעילים',
+    why:'שדות חסרים מקשים על תשלום, תקשורת ודיווח. ממוינים לפי מספר החוסרים.',
+    cols:['ספק','סטטוס','חוסרים','קניין','חשיפה פתוחה'],
+    rows:gaps.slice(0,25).map(s=>[esc(s.name),esc(s.status),s.gaps.map(x=>`<span class="tag t-mute">${esc(x)}</span>`).join(' '),esc(s.buyer||'—'),po.has(s.no)?money(po.get(s.no).val):'—']),raw:gaps});
+  const dormant=list.filter(s=>s.active&&!po.has(s.no));
+  blocks.push({id:'dz',sev:'sea',title:'ספקים פעילים ללא פעילות פתוחה',
+    why:'מוגדרים פעילים אך אין להם שורה אחת פתוחה בדוח ההזמנות. מועמדים לניקוי רשימת הספקים או להקפאה.',
+    cols:['ספק','סוג','נפתח','קניין','ארץ'],
+    rows:dormant.slice(0,25).map(s=>[esc(s.name),esc(s.type||'—'),dstr(s.opened),esc(s.buyer||'—'),esc(s.country||'—')]),raw:dormant});
+
+  p.innerHTML=`<div class="sec">${supBar()}</div>
+  <div class="sec"><div class="sec-h"><h2>סיכוני ספקים ואיכות נתונים</h2>
+    <p>הצלבה בין קובץ האב של הספקים לבין דוח ההזמנות הפתוחות, לפי מספר ספק.</p></div></div>`
+  +blocks.map(b=>`<div class="rec sev-${b.sev}">
+    <div class="rec-h"><h3>${b.title}</h3><span class="why">${b.why}</span>
+      <span class="cnt">${nf0.format(b.raw.length)} ספקים</span>
+      <button class="btn btn-sm" data-xr="${b.id}">ייצוא</button></div>
+    <div class="rec-b">${b.rows.length?`<div class="tscroll" style="border:0"><table><thead><tr>${b.cols.map(c=>`<th style="cursor:default">${c}</th>`).join('')}</tr></thead>
+      <tbody>${b.rows.map(r=>'<tr>'+r.map(c=>`<td>${c}</td>`).join('')+'</tr>').join('')}</tbody></table></div>`
+      :'<div class="empty">אין ממצאים. זה סימן טוב.</div>'}</div></div>`).join('');
+  bindSupBar();
+  p.querySelectorAll('[data-xr]').forEach(b=>b.onclick=()=>{
+    const x=blocks.find(y=>y.id===b.dataset.xr);exportSuppliers(x.raw,x.title);});
+}
+
+/* ---------- טעינת קובץ ספקים ---------- */
+function renderSupLoad(){
+  $('#p-sload').innerHTML=`<div class="sec"><div class="sec-h"><h2>טעינת קובץ הספקים</h2>
+    <p>הפיקו ב-Priority את דוח כרטיסי הספקים ושמרו כ-Excel. הקובץ הזה נפרד לחלוטין מדוח ההזמנות: הוא מזין את כל לשוניות הספקים בלבד.</p></div>
+    <div class="drop" id="sdrop">גררו לכאן את קובץ הספקים, או <button class="btn btn-sm" id="spick" style="margin:0 4px">בחרו קובץ</button></div>
+    <div class="note">קובץ ספקים נוכחי: <b>${esc(S.supLabel)}</b>${S.supCustom?' (נטען על ידכם)':' (ברירת מחדל)'} · ${nf0.format(S.sup.length)} ספקים.<br>
+    דוח ההזמנות הנוכחי: <b>${esc(S.label)}</b> · ${nf0.format(S.rows.length)} שורות — נטען בנפרד בלשונית "טעינת דוח" שבניהול הזמנות.</div></div>
+    <div class="sec"><div class="sec-h"><h2>עמודות שהמערכת מזהה</h2>
+      <p>החיבור בין שני הקבצים נעשה לפי מספר הספק בלבד.</p></div>
+      <div class="tscroll"><table><thead><tr><th style="cursor:default">שדה</th><th style="cursor:default">כותרות מזוהות</th></tr></thead><tbody>
+      ${Object.keys(SUP_ALIAS).map(k=>`<tr><td>${esc(SUP_LABEL[k]||k)}</td><td style="color:var(--steel);font-size:12.5px">${esc(SUP_ALIAS[k].join(' · '))}</td></tr>`).join('')}
+      </tbody></table></div></div>`;
+  const d=$('#sdrop');
+  $('#spick').onclick=()=>$('#sfile').click();
+  ['dragenter','dragover'].forEach(ev=>d.addEventListener(ev,e=>{e.preventDefault();d.classList.add('hot');}));
+  ['dragleave','drop'].forEach(ev=>d.addEventListener(ev,e=>{e.preventDefault();d.classList.remove('hot');}));
+  d.addEventListener('drop',e=>{if(e.dataTransfer.files[0])readSupFile(e.dataTransfer.files[0]);});
+}
+function readSupFile(file){
+  const fr=new FileReader();
+  fr.onerror=()=>toast('לא ניתן לקרוא את הקובץ');
+  fr.onload=e=>{
+    try{
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',cellDates:true});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const aoa=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null,blankrows:false});
+      if(!aoa.length)throw new Error('הגיליון ריק');
+      let hi=0,best=-1;
+      for(let i=0;i<Math.min(10,aoa.length);i++){
+        const n=Object.keys(mapHeadersWith(aoa[i],SUP_ALIAS)).length; if(n>best){best=n;hi=i;}
+      }
+      const map=mapHeadersWith(aoa[hi],SUP_ALIAS);
+      // ב-Priority יש שתי עמודות "תנאי תשלום": הראשונה קוד, השנייה תיאור
+      const dup=[];aoa[hi].forEach((c,i)=>{if(norm(c)==='תנאיתשלום')dup.push(i);});
+      if(dup.length>1){map.payCode=dup[0];map.payTerm=dup[dup.length-1];}
+      if(map.no===undefined||map.name===undefined)throw new Error('לא נמצאו עמודות "מס.ספק" ו"שם ספק". ודאו שזהו דוח הספקים של Priority.');
+      const out=[];
+      for(let i=hi+1;i<aoa.length;i++){
+        const a=aoa[i]; if(!a||a.every(c=>c==null||c===''))continue;
+        const o={};
+        for(const k in map){const v=a[map[k]];
+          o[k]=k==='opened'?toDate(v):(SUP_NUM.indexOf(k)>-1?toNum(v):clean(v));}
+        if(!o.no)continue;
+        out.push(o);
+      }
+      if(!out.length)throw new Error('לא נמצאו שורות ספקים');
+      S.sup=deriveSup(out);S.supLabel=file.name.replace(/\.(xlsx|xls|csv)$/i,'');S.supCustom=true;
+      S.sd=newSupFilters();S.sf=newSupFilters();S.supSel=null;S.supQ='';S.limit=150;
+      try{store('supdata',{rows:S.sup.map(s=>{const o={};Object.keys(SUP_ALIAS).forEach(k=>o[k]=s[k]??null);return o;}),label:S.supLabel});}
+      catch(err){toast('קובץ הספקים נטען אך גדול מכדי להישמר בדפדפן');}
+      toast('נטענו '+nf0.format(out.length)+' ספקים מתוך '+file.name,5000);
+      render();
+    }catch(err){toast('שגיאה: '+(err.message||'הקובץ לא נקרא'),6000);}
+  };
+  fr.readAsArrayBuffer(file);
+}
+
+function renderCrit(){
+  const p=$('#p-crit'),rows=filtered();
+  const sel=S.f.crit,q=(S.f.critQ||'').toLowerCase().trim();
+  const match=r=>{
+    let ok=sel.size===0;
+    if(sel.size){
+      for(const name of sel){
+        const grp=DEFAULT_GROUPS.find(x=>x.name===name); if(!grp)continue;
+        if(grp.kw.some(k=>r.hay.indexOf(k.toLowerCase())>-1)){ok=true;break;}
+      }
+    }
+    if(!ok)return false;
+    if(q&&r.hay.indexOf(q)<0)return false;
+    return true;
+  };
+  const list=rows.filter(match);
+  const byGroup=DEFAULT_GROUPS.map(gr=>{
+    const m=rows.filter(r=>gr.kw.some(k=>r.hay.indexOf(k.toLowerCase())>-1));
+    return{name:gr.name,n:m.length,val:sum(m,'openILS'),late:m.filter(r=>r.late).length};
+  });
+  p.innerHTML=`<div class="sec"><div class="sec-h"><h2>פריטים קריטיים לקו הייצור</h2>
+    <p>סיווג לפי מילות מפתח בתיאור הפריט, במק״ט ובסיווג המלאי. בחרו קבוצה אחת או יותר ולחצו רענון.</p>
+    ${refreshBtn('','רענון')}
+    <button class="btn btn-sm" id="xCrit">ייצוא לאקסל</button></div>
+    <div class="grid3" style="margin-bottom:14px">${byGroup.map(g=>`
+      <button class="box box-p" style="text-align:start;cursor:pointer;border-color:${S.d.crit.has(g.name)?'var(--amber)':'var(--line)'};border-width:${S.d.crit.has(g.name)?'2px':'1px'}" data-g="${esc(g.name)}">
+        <div class="chart-t">${esc(g.name)}${S.d.crit.has(g.name)&&!sel.has(g.name)?' <span style="color:var(--amber);font-size:11px">· ממתין לרענון</span>':''}</div>
+        <div class="gauge-v" style="font-size:24px;margin:4px 0 0">${money(g.val)}</div>
+        <div class="chart-s" style="margin:2px 0 0">${g.n} שורות${g.late?` · <span style="color:var(--red)">${g.late} באיחור</span>`:''}</div>
+      </button>`).join('')}</div>
+    <div class="filters" style="margin-bottom:14px">
+      <div class="fgrp" style="flex:1 1 280px"><label class="flab" for="cq">חיפוש מונח נוסף בתוך הבחירה (Enter לרענון)</label>
+        <input type="search" id="cq" placeholder="למשל: משאבה, NaOH, מכולה…" value="${esc(S.d.critQ||'')}"></div>
+      <div class="fgrp" style="flex:0 0 auto;align-self:flex-end"><button class="btn btn-sm" id="cClear">ניקוי בחירה</button></div>
+    </div>
+    <div class="sec-h"><h2 style="font-size:15px">${nf0.format(list.length)} שורות · ${money(sum(list,'openILS'))}</h2>
+      <p>${list.filter(r=>r.late).length?`<b style="color:var(--red)">${list.filter(r=>r.late).length} באיחור</b>`:'אין איחורים בבחירה זו'}</p></div>
+    <div id="ctbl"></div></div>`;
+  renderTable(list,$('#ctbl'));
+  p.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{
+    const n=b.dataset.g; S.d.crit.has(n)?S.d.crit.delete(n):S.d.crit.add(n);
+    b.style.borderColor=S.d.crit.has(n)?'var(--amber)':'var(--line)';
+    b.style.borderWidth=S.d.crit.has(n)?'2px':'1px';
+    markDirty();});
+  const ci=$('#cq');
+  ci.oninput=()=>{S.d.critQ=ci.value;markDirty();};
+  ci.onkeydown=e=>{if(e.key==='Enter')applyFilters();};
+  $('#cClear').onclick=()=>{S.d.crit.clear();S.d.critQ='';applyFilters();};
+  $('#xCrit').onclick=()=>exportRows(sortRows(list),'פריטים קריטיים');
+}
+
+function renderLoad(){
+  $('#p-load').innerHTML=`<div class="sec"><div class="sec-h"><h2>טעינת דוח ה-Priority היומי</h2>
+    <p>הפיקו ב-Priority את דוח "הזמנות רכש פתוחות", שמרו כ-Excel, וגררו אותו לכאן. הקובץ נשאר במחשב שלכם — הוא נקרא ומנותח בדפדפן בלבד ואינו נשלח לשום שרת.</p></div>
+    <div class="drop" id="drop">גררו לכאן קובץ Excel או CSV, או <button class="btn btn-sm" id="pick" style="margin:0 4px">בחרו קובץ</button></div>
+    <div class="note">הדוח הנוכחי: <b>${esc(S.label)}</b>${S.custom?' (נטען על ידכם)':' (ברירת מחדל)'} · ${nf0.format(S.rows.length)} שורות.</div>
+    </div>
+    <div class="sec"><div class="sec-h"><h2>איך העמודות מזוהות</h2>
+      <p>הזיהוי לפי שמות העמודות בעברית, עם התעלמות מרווחים, גרשיים ונקודות. אם שינו שם עמודה ב-Priority, המערכת תודיע מה לא נמצא.</p></div>
+      <div class="tscroll"><table><thead><tr><th style="cursor:default">שדה במערכת</th><th style="cursor:default">כותרות מזוהות ב-Priority</th></tr></thead><tbody>
+      ${Object.keys(ALIAS).map(k=>`<tr><td>${esc(({supplierNo:'מספר ספק',supplier:'שם ספק',phone:'טלפון',po:'מספר הזמנה',buyer:'קניין / לטיפול',orderDate:'תאריך הזמנה',sku:'מק״ט',desc:'תיאור פריט',descEn:'תיאור לועזי',cls:'סיווג מלאי',cat:'קטגוריית מלאי',due:'תאריך אספקה',qtyOrd:'כמות בהזמנה',qtyRec:'כמות שסופקה',qtyOpen:'יתרה לאספקה',unit:'יחידת מידה',openVal:'שווי יתרה',curr:'מטבע',openILS:'שווי יתרה בשקלים',qtyInv:'כמות בחשבוניות',importFile:'תיק יבוא',shipDate:'תאריך יציאה',arrDate:'תאריך הגעה',status:'סטטוס הזמנה',unitPrice:'מחיר ליחידה'})[k])}</td>
+      <td style="color:var(--steel);font-size:12.5px">${esc(ALIAS[k].join(' · '))}</td></tr>`).join('')}
+      </tbody></table></div></div>
+    <div class="sec"><div class="sec-h"><h2>נתונים נגזרים</h2></div>
+      <div class="box box-p" style="font-size:13.5px;line-height:1.75;color:var(--steel)">
+      <b style="color:var(--ink)">ימי איחור</b> — הפרש בין תאריך האספקה לתאריך היום, לשורות שיתרתן גדולה מאפס.<br>
+      <b style="color:var(--ink)">אספקה חלקית</b> — התקבלה כמות כלשהי ונותרה יתרה.<br>
+      <b style="color:var(--ink)">סטטוס לא תקין</b> — כל סטטוס שאינו ${DEFAULT_OK.join(', ')}. ניתן לשינוי בלשונית "סטטוסים לא תקינים".<br>
+      <b style="color:var(--ink)">רענון</b> — בחירת קניינים, סטטוסים וקבוצות פריטים נכנסת לתוקף רק בלחיצה על "רענון"; מה שלא נבחר נעלם מכל המסכים.<br>
+      <b style="color:var(--ink)">שווי בשקלים</b> — נלקח כפי שהוא מהדוח; אם העמודה חסרה, נעשה שימוש בשווי היתרה במטבע המקור.
+      </div></div>`;
+  const d=$('#drop');
+  $('#pick').onclick=()=>$('#file').click();
+  ['dragenter','dragover'].forEach(ev=>d.addEventListener(ev,e=>{e.preventDefault();d.classList.add('hot');}));
+  ['dragleave','drop'].forEach(ev=>d.addEventListener(ev,e=>{e.preventDefault();d.classList.remove('hot');}));
+  d.addEventListener('drop',e=>{if(e.dataTransfer.files[0])readFile(e.dataTransfer.files[0]);});
+}
+
+/* ---------- file reading ---------- */
+function readFile(file){
+  const fr=new FileReader();
+  fr.onerror=()=>toast('לא ניתן לקרוא את הקובץ');
+  fr.onload=e=>{
+    try{
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',cellDates:true});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const aoa=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null,blankrows:false});
+      if(!aoa.length)throw new Error('הגיליון ריק');
+      // find header row: the row with most alias hits in the first 10 rows
+      let hi=0,best=-1;
+      for(let i=0;i<Math.min(10,aoa.length);i++){
+        const m=mapHeaders(aoa[i].map(x=>x));const n=Object.keys(m).length;
+        if(n>best){best=n;hi=i;}
+      }
+      const map=mapHeaders(aoa[hi]);
+      const need=['po','supplier','due','qtyOpen','status'];
+      const miss=need.filter(k=>map[k]===undefined);
+      if(best<6||miss.length>2)throw new Error('לא זוהו עמודות הדוח. ודאו שזהו דוח "הזמנות רכש פתוחות" של Priority.');
+      const rows=[];
+      for(let i=hi+1;i<aoa.length;i++){
+        const a=aoa[i]; if(!a||a.every(c=>c==null||c===''))continue;
+        const o={};
+        for(const k in map){
+          const v=a[map[k]];
+          o[k]=DATEF.indexOf(k)>-1?toDate(v):(NUMF.indexOf(k)>-1?toNum(v):clean(v));
+        }
+        if(!o.po&&!o.supplier)continue;
+        rows.push(o);
+      }
+      if(!rows.length)throw new Error('לא נמצאו שורות נתונים');
+      S.rows=derive(rows);
+      S.label=file.name.replace(/\.(xlsx|xls|csv)$/i,'');
+      S.custom=true;S.limit=150;S.d=newFilters();S.f=newFilters();S.dirty=false;
+      try{store('data',{rows:S.rows.map(r=>{const o={};Object.keys(ALIAS).forEach(k=>o[k]=r[k]??null);return o;}),label:S.label});}
+      catch(err){toast('הדוח נטען אך גדול מכדי להישמר בדפדפן');}
+      const warn=miss.length?' · עמודות שלא זוהו: '+miss.length:'';
+      toast('נטענו '+nf0.format(rows.length)+' שורות מתוך '+file.name+warn,5000);
+      render();
+    }catch(err){toast('שגיאה: '+(err.message||'הקובץ לא נקרא'),6000);}
+  };
+  fr.readAsArrayBuffer(file);
+}
+
+/* ============================================================
+   מודול ספנד — דוח הוצאות בפועל, נפרד משני הקבצים האחרים
+   ============================================================ */
+const SPEND_ALIAS={
+  date:['תאריך','תאריךחשבונית','תחשבונית','תאריךאסמכתא','תאריךרישום','תאריךתנועה','תערך','date','invoicedate'],
+  supplierNo:['מסספק','מספרספק','קודספק','supplier'],
+  supplier:['שםספק','ספק','שםהספק','suppliername','vendor'],
+  amount:['סכוםבשקלים','סכוםבשח','סהכבשקלים','שוויבשקלים','סכוםשח','סכום','סהכ','סהכלתשלום','ערך','סכוםחשבונית','חובה','amount','total'],
+  amountOrig:['סכוםבמטח','סכוםמקורי','סכוםמטח'],
+  curr:['מטבע','currency'],
+  buyer:['לטיפול','קניין','קנין','מטפל','אחראי'],
+  doc:['מספרחשבונית','חשבונית','אסמכתא','מסאסמכתא','מסמך','מסחשבונית','invoice'],
+  po:['הזמנה','מסהזמנה','מספרהזמנה'],
+  sku:['מקט','מספרפריט','פריט'],
+  desc:['תאורפריט','תיאורפריט','תאור','פרטים'],
+  qty:['כמות'],
+  cat:['קטגוריה','קטגוריתמלאי','סיווג','סיווגמלאי','תאורסוגפריט','חשבון','תאורחשבון','מחלקה']
+};
+const SPEND_LABEL={date:'תאריך',supplierNo:'מס׳ ספק',supplier:'שם ספק',amount:'סכום בשקלים',
+  amountOrig:'סכום במט״ח',curr:'מטבע',buyer:'קניין',doc:'אסמכתא / חשבונית',po:'הזמנה',
+  sku:'מק״ט',desc:'תיאור',qty:'כמות',cat:'קטגוריה / חשבון'};
+const SPEND_REQ=['date','supplier','amount'];
+const SPEND_NUM=['amount','amountOrig','qty'];
+
+function deriveSpend(list){
+  const byNo=new Map(),byName=new Map();
+  S.sup.forEach(s=>{byNo.set(s.no,s);if(s.name)byName.set(s.name.trim(),s);});
+  list.forEach(r=>{
+    SPEND_NUM.forEach(k=>{if(typeof r[k]==='string')r[k]=toNum(r[k]);});
+    r.amount=r.amount||0;
+    r.year=r.date?+r.date.slice(0,4):null;
+    r.month=r.date?r.date.slice(0,7):null;
+    r.q=r.date?Math.floor((+r.date.slice(5,7)-1)/3)+1:null;
+    r.qk=r.year?r.year+'-Q'+r.q:null;
+    const m=(r.supplierNo&&byNo.get(String(r.supplierNo).trim()))||(r.supplier&&byName.get(String(r.supplier).trim()))||null;
+    r.sup=m;
+    r.type=m?(m.type||'ללא סיווג'):'לא נמצא בקובץ האב';
+    r.country=m?(m.country||'—'):'—';
+    r.status=m?m.status:null;
+    r.key=(r.supplierNo&&String(r.supplierNo).trim())||(r.supplier||'—');
+    r.hay=((r.supplier||'')+' '+(r.supplierNo||'')+' '+(r.desc||'')+' '+(r.cat||'')+' '+(r.buyer||'')+' '+(r.doc||'')+' '+(r.sku||'')).toLowerCase();
+  });
+  return list;
+}
+function newSpendFilters(){return{years:new Set(),qs:new Set(),buyers:new Set(),types:new Set(),cats:new Set(),q:'',minAmt:0};}
+function cloneSpendF(f){return{years:new Set(f.years),qs:new Set(f.qs),buyers:new Set(f.buyers),types:new Set(f.types),cats:new Set(f.cats),q:f.q,minAmt:f.minAmt};}
+function applySpendFilters(){S.pf=cloneSpendF(S.pd);S.dirty=false;S.limit=150;render();}
+function spendFiltered(){
+  const f=S.pf,q=f.q.toLowerCase().trim();
+  return S.spend.filter(r=>{
+    if(f.years.size&&!f.years.has(String(r.year)))return false;
+    if(f.qs.size&&!f.qs.has('Q'+r.q))return false;
+    if(f.buyers.size&&!f.buyers.has(r.buyer||'—'))return false;
+    if(f.types.size&&!f.types.has(r.type))return false;
+    if(f.cats.size&&!f.cats.has(r.cat||'—'))return false;
+    if(f.minAmt&&Math.abs(r.amount)<f.minAmt)return false;
+    if(q&&r.hay.indexOf(q)<0)return false;
+    return true;
+  });
+}
+const spendYears=()=>[...new Set(S.spend.map(r=>r.year).filter(Boolean))].sort((a,b)=>a-b);
+function spendBar(){
+  const d=S.pd;
+  const chip=(id,key,label,items)=>`<div class="fgrp" style="flex:1 1 200px"><span class="flab">${label}${d[key].size?' ('+d[key].size+')':''}</span>
+    <div class="chips" id="${id}">${items.map(([k,n])=>`<button class="chip" data-v="${esc(k)}" aria-pressed="${d[key].has(k)}">${esc(k)}<span class="n">${n}</span></button>`).join('')}</div></div>`;
+  const yrs=spendYears().map(y=>[String(y),S.spend.filter(r=>r.year===y).length]);
+  return `<div class="filters">
+    <div class="fgrp" style="flex:1 1 190px"><label class="flab" for="pfq">חיפוש</label>
+      <input type="search" id="pfq" placeholder="ספק, קטגוריה, אסמכתא…" value="${esc(d.q)}"></div>
+    ${chip('pfYear','years','שנים',yrs)}
+    ${chip('pfQ','qs','רבעונים',[['Q1',0],['Q2',0],['Q3',0],['Q4',0]].map(([k])=>[k,S.spend.filter(r=>r.q===+k[1]).length]))}
+    ${chip('pfType','types','סוג ספק',uniq(S.spend,'type').slice(0,14))}
+    ${chip('pfBuyer','buyers','קניין',uniq(S.spend,'buyer').slice(0,14))}
+    <div class="fgrp" style="flex:0 1 150px"><label class="flab" for="pfMin">סכום מינימלי (₪)</label>
+      <input type="text" id="pfMin" inputmode="numeric" value="${d.minAmt||''}" placeholder="0"></div>
+    <div class="fgrp" style="flex:0 1 auto;align-self:flex-end;display:flex;gap:6px">
+      ${refreshBtn('','רענון תצוגה')}<button class="btn btn-sm" id="pfClear">איפוס סינון</button></div>
+  </div>`;
+}
+function bindSpendBar(){
+  const d=S.pd,q=$('#pfq');
+  if(q){q.oninput=()=>{d.q=q.value;markDirty();};q.onkeydown=e=>{if(e.key==='Enter')applySpendFilters();};}
+  bindChips($('#pfYear'),d.years);bindChips($('#pfQ'),d.qs);
+  bindChips($('#pfType'),d.types);bindChips($('#pfBuyer'),d.buyers);
+  const m=$('#pfMin');if(m){m.oninput=()=>{d.minAmt=toNum(m.value)||0;markDirty();};m.onkeydown=e=>{if(e.key==='Enter')applySpendFilters();};}
+  const c=$('#pfClear');if(c)c.onclick=()=>{S.pd=newSpendFilters();applySpendFilters();};
+}
+const spendSum=a=>a.reduce((s,r)=>s+(r.amount||0),0);
+function spendGroup(arr,fn){
+  const m=new Map();
+  arr.forEach(r=>{const k=fn(r);if(k==null)return;let g=m.get(k);if(!g){g={k,n:0,v:0,rows:[]};m.set(k,g);}g.n++;g.v+=r.amount||0;g.rows.push(r);});
+  return [...m.values()];
+}
+
+/* ---------- סקירת ספנד ---------- */
+function renderSpendOverview(){
+  const p=$('#p-pover'),rows=spendFiltered();
+  const tot=spendSum(rows),sups=spendGroup(rows,r=>r.key);
+  const byYear=spendGroup(rows,r=>r.year).filter(g=>g.k).sort((a,b)=>a.k-b.k);
+  const byQ=spendGroup(rows,r=>r.qk).filter(g=>g.k).sort((a,b)=>a.k<b.k?-1:1);
+  const byMonth=spendGroup(rows,r=>r.month).filter(g=>g.k).sort((a,b)=>a.k<b.k?-1:1);
+  const byType=spendGroup(rows,r=>r.type).sort((a,b)=>b.v-a.v);
+  const byBuyer=spendGroup(rows,r=>r.buyer||'—').sort((a,b)=>b.v-a.v);
+  const byCat=spendGroup(rows,r=>r.cat||'—').sort((a,b)=>b.v-a.v);
+  const top=sups.slice().sort((a,b)=>b.v-a.v);
+  let cum=0;const pareto=top.map(g=>{cum+=g.v;return{...g,cum};});
+  const p80=pareto.findIndex(g=>g.cum>=tot*0.8)+1;
+  p.innerHTML=`
+  <div class="sec">${spendBar()}</div>
+  <div class="sec grid3">
+    <div class="box box-p"><div class="gauge-k">סך הספנד בתצוגה</div><div class="gauge-v">${short(tot)}</div>
+      <div class="gauge-s">${nf0.format(rows.length)} תנועות · ${money(rows.length?tot/rows.length:0)} לתנועה</div></div>
+    <div class="box box-p"><div class="gauge-k">ספקים</div><div class="gauge-v">${nf0.format(sups.length)}</div>
+      <div class="gauge-s">${nf0.format(byCat.length)} קטגוריות · ${nf0.format(byBuyer.length)} קניינים</div></div>
+    <div class="box box-p"><div class="gauge-k">ריכוזיות</div><div class="gauge-v">${p80>0?nf0.format(p80):'—'}</div>
+      <div class="gauge-s">ספקים מרכזים 80% מההוצאה${sups.length?' · '+(p80/sups.length*100).toFixed(0)+'% מהספקים':''}</div></div>
+    <div class="box box-p"><div class="gauge-k">הספק הגדול</div><div class="gauge-v" style="font-size:22px">${top.length?short(top[0].v):'—'}</div>
+      <div class="gauge-s">${top.length?esc((top[0].rows[0].supplier||'').slice(0,30))+' · '+(top[0].v/tot*100).toFixed(1)+'%':''}</div></div>
+    <div class="box box-p"><div class="gauge-k">טווח התקופה</div><div class="gauge-v" style="font-size:22px">${byYear.length?byYear[0].k+'–'+byYear[byYear.length-1].k:'—'}</div>
+      <div class="gauge-s">${nf0.format(byMonth.length)} חודשים עם פעילות</div></div>
+    <div class="box box-p"><div class="gauge-k">ללא התאמה בקובץ האב</div>
+      <div class="gauge-v" style="color:${rows.filter(r=>!r.sup).length?'var(--amber)':'var(--moss)'}">${nf0.format(spendGroup(rows.filter(r=>!r.sup),r=>r.key).length)}</div>
+      <div class="gauge-s">${money(spendSum(rows.filter(r=>!r.sup)))} · ספקים שלא נמצאו לפי מספר או שם</div></div>
+  </div>
+
+  <div class="sec"><div class="box box-p"><div class="chart-t">ספנד לפי שנה</div>
+    <div class="chart-s">סך ההוצאה בפועל בכל שנה בתצוגה</div>
+    <div style="overflow-x:auto">${byYear.length?columns(byYear.map(g=>({k:String(g.k),lab:String(g.k),v:g.v,c:'var(--brand)'}))):'<div class="chart-s">אין נתונים.</div>'}</div></div></div>
+
+  <div class="sec"><div class="box box-p"><div class="chart-t">ספנד רבעוני</div>
+    <div class="chart-s">${nf0.format(byQ.length)} רבעונים · מגמה לאורך התקופה</div>
+    <div style="overflow-x:auto">${byQ.length?columns(byQ.slice(-16).map(g=>({k:g.k,lab:'Q'+g.k.slice(-1)+"'"+g.k.slice(2,4),v:g.v,
+      c:g.k.slice(-1)==='1'?'var(--sea)':'var(--brand)'}))):''}</div></div></div>
+
+  <div class="sec grid2">
+    <div class="box box-p"><div class="chart-t">20 הספקים הגדולים</div><div class="chart-s">לפי סך הוצאה בתצוגה</div>
+      ${bars(top.slice(0,20).map(g=>({k:(g.rows[0].supplier||g.k),v:g.v,lab:money(g.v)+' · '+(g.v/tot*100).toFixed(1)+'%',cls:'moss'})))}</div>
+    <div class="box box-p"><div class="chart-t">ספנד לפי סוג ספק</div><div class="chart-s">הסיווג מגיע מקובץ האב של הספקים</div>
+      <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+        ${donut(byType.slice(0,9).map((g,i)=>({k:g.k,v:g.v,c:PALETTE[i%10]})),150)}
+        <div class="legend" style="flex:1">${byType.slice(0,9).map((g,i)=>`<div><span class="sw" style="background:${PALETTE[i%10]}"></span>${esc(g.k)}<span class="lv">${short(g.v)}</span></div>`).join('')}</div>
+      </div></div>
+  </div>
+
+  <div class="sec grid2">
+    <div class="box box-p"><div class="chart-t">ספנד לפי קניין</div><div class="chart-s">מי מוציא את הכסף</div>
+      ${bars(byBuyer.slice(0,12).map(g=>({k:g.k,v:g.v,lab:money(g.v)})))}</div>
+    <div class="box box-p"><div class="chart-t">ספנד לפי קטגוריה</div><div class="chart-s">לפי עמודת הקטגוריה או החשבון בדוח</div>
+      ${bars(byCat.slice(0,12).map(g=>({k:g.k,v:g.v,lab:money(g.v),cls:'amb'})))}</div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-h"><h2>פירוט ספקים (${nf0.format(sups.length)})</h2>
+      <p>מצטבר לכל התקופה שבתצוגה</p>
+      <button class="btn btn-sm" id="xPov">ייצוא לאקסל</button></div>
+    <div class="tscroll"><table><thead><tr><th style="cursor:default">ספק</th><th style="cursor:default">סוג</th>
+      <th style="cursor:default">תנועות</th><th style="cursor:default" class="ta-e">ספנד</th>
+      <th style="cursor:default" class="ta-e">% מהסך</th><th style="cursor:default" class="ta-e">מצטבר</th>
+      <th style="cursor:default" class="ta-e">ממוצע לתנועה</th></tr></thead><tbody>
+      ${pareto.slice(0,S.limit).map(g=>`<tr><td>${esc(g.rows[0].supplier||g.k)}<span class="sub">${esc(g.k)}</span></td>
+        <td>${esc(g.rows[0].type)}</td><td class="num">${nf0.format(g.n)}</td>
+        <td class="ta-e num">${money(g.v)}</td><td class="ta-e num">${(g.v/tot*100).toFixed(2)}%</td>
+        <td class="ta-e num" style="color:var(--steel)">${(g.cum/tot*100).toFixed(1)}%</td>
+        <td class="ta-e num">${money(g.v/g.n)}</td></tr>`).join('')}
+    </tbody></table></div>
+    ${pareto.length>S.limit?`<div class="more"><button class="btn" id="pmore">הצגת 150 נוספים</button></div>`:''}</div>`;
+  bindSpendBar();
+  const pm=$('#pmore');if(pm)pm.onclick=()=>{S.limit+=150;render();};
+  $('#xPov').onclick=()=>exportAoa([['ספק','מס׳ ספק','סוג ספק','ארץ','תנועות','ספנד ₪','% מהסך','ממוצע לתנועה']]
+    .concat(pareto.map(g=>[g.rows[0].supplier||'',g.k,g.rows[0].type,g.rows[0].country,g.n,Math.round(g.v),+(g.v/tot*100).toFixed(2),Math.round(g.v/g.n)])),'ספנד לפי ספק');
+}
+
+/* ---------- השוואת שנים ---------- */
+function renderSpendYoY(){
+  const p=$('#p-pyoy'),rows=spendFiltered(),yrs=spendYears();
+  if(yrs.length<2&&S.spend.length){/* still render, with one year */}
+  if(S.yA==null||yrs.indexOf(S.yA)<0)S.yA=yrs.length?yrs[yrs.length-1]:null;
+  if(S.yB==null||yrs.indexOf(S.yB)<0)S.yB=yrs.length>1?yrs[yrs.length-2]:S.yA;
+  const A=rows.filter(r=>r.year===S.yA),B=rows.filter(r=>r.year===S.yB);
+  const ta=spendSum(A),tb=spendSum(B),dlt=ta-tb;
+  const mk=arr=>{const m=new Map();spendGroup(arr,r=>r.key).forEach(g=>m.set(g.k,g));return m;};
+  const ma=mk(A),mb=mk(B);
+  const keys=[...new Set([...ma.keys(),...mb.keys()])];
+  const comp=keys.map(k=>{const a=ma.get(k),b=mb.get(k);
+    const va=a?a.v:0,vb=b?b.v:0;
+    return{k,name:(a||b).rows[0].supplier||k,type:(a||b).rows[0].type,va,vb,d:va-vb,
+      pct:vb?((va-vb)/Math.abs(vb)*100):(va?null:0)};});
+  const grew=comp.filter(c=>c.d>0).sort((a,b)=>b.d-a.d);
+  const shrank=comp.filter(c=>c.d<0).sort((a,b)=>a.d-b.d);
+  const fresh=comp.filter(c=>c.vb===0&&c.va>0).sort((a,b)=>b.va-a.va);
+  const gone=comp.filter(c=>c.va===0&&c.vb>0).sort((a,b)=>b.vb-a.vb);
+  const qa=[1,2,3,4].map(q=>({q,a:spendSum(A.filter(r=>r.q===q)),b:spendSum(B.filter(r=>r.q===q))}));
+  const byTypeC=[...new Set(rows.map(r=>r.type))].map(t=>({t,
+    a:spendSum(A.filter(r=>r.type===t)),b:spendSum(B.filter(r=>r.type===t))}))
+    .filter(x=>x.a||x.b).sort((a,b)=>(b.a+b.b)-(a.a+a.b));
+  const pctTag=v=>v==null?'<span class="tag t-sea">חדש</span>':
+    `<span class="tag ${v>0?'t-red':'t-moss'}">${v>0?'+':''}${v.toFixed(0)}%</span>`;
+  p.innerHTML=`
+  <div class="sec">${spendBar()}</div>
+  <div class="sec"><div class="filters">
+    <div class="fgrp" style="flex:0 1 150px"><label class="flab" for="yA">שנה נבחרת</label>
+      <select id="yA">${yrs.map(y=>`<option value="${y}" ${y===S.yA?'selected':''}>${y}</option>`).join('')}</select></div>
+    <div class="fgrp" style="flex:0 1 150px"><label class="flab" for="yB">שנת השוואה</label>
+      <select id="yB">${yrs.map(y=>`<option value="${y}" ${y===S.yB?'selected':''}>${y}</option>`).join('')}</select></div>
+    <div class="fgrp" style="flex:1 1 auto;align-self:flex-end"><span class="flab">&nbsp;</span>
+      <button class="btn btn-sm" id="xYoY">ייצוא ההשוואה</button></div>
+  </div></div>
+
+  <div class="sec grid3">
+    <div class="box box-p"><div class="gauge-k">${S.yA}</div><div class="gauge-v">${short(ta)}</div>
+      <div class="gauge-s">${nf0.format(A.length)} תנועות · ${nf0.format(ma.size)} ספקים</div></div>
+    <div class="box box-p"><div class="gauge-k">${S.yB}</div><div class="gauge-v">${short(tb)}</div>
+      <div class="gauge-s">${nf0.format(B.length)} תנועות · ${nf0.format(mb.size)} ספקים</div></div>
+    <div class="box box-p"><div class="gauge-k">שינוי</div>
+      <div class="gauge-v" style="color:${dlt>0?'var(--red)':'var(--moss)'}">${dlt>0?'+':''}${short(dlt)}</div>
+      <div class="gauge-s">${tb?((dlt/Math.abs(tb))*100).toFixed(1)+'% לעומת '+S.yB:'אין בסיס להשוואה'}</div></div>
+  </div>
+
+  <div class="sec grid2">
+    <div class="box box-p"><div class="chart-t">השוואה רבעונית</div><div class="chart-s">${S.yA} מול ${S.yB}</div>
+      <div class="bars">${qa.map(x=>{const mx=Math.max(1,...qa.flatMap(y=>[y.a,y.b]));return `
+        <div class="bar-row"><div class="bar-top"><span>רבעון ${x.q}</span>
+          <span class="num" style="color:var(--steel)">${short(x.a)} מול ${short(x.b)} ${x.b?pctTag((x.a-x.b)/Math.abs(x.b)*100):''}</span></div>
+        <div class="bar-track"><div class="bar-fill moss" style="width:${x.a/mx*100}%"></div></div>
+        <div class="bar-track" style="margin-top:3px"><div class="bar-fill" style="width:${x.b/mx*100}%;background:var(--steel)"></div></div></div>`;}).join('')}</div>
+      <div class="note">הפס הירוק ${S.yA}, האפור ${S.yB}.</div></div>
+    <div class="box box-p"><div class="chart-t">שינוי לפי סוג ספק</div><div class="chart-s">היכן גדל התקציב והיכן התכווץ</div>
+      <div class="tscroll" style="border:0"><table><thead><tr><th style="cursor:default">סוג</th>
+        <th style="cursor:default" class="ta-e">${S.yA}</th><th style="cursor:default" class="ta-e">${S.yB}</th>
+        <th style="cursor:default" class="ta-e">שינוי</th></tr></thead><tbody>
+        ${byTypeC.slice(0,12).map(x=>`<tr><td>${esc(x.t)}</td><td class="ta-e num">${short(x.a)}</td>
+          <td class="ta-e num">${short(x.b)}</td><td class="ta-e">${x.b?pctTag((x.a-x.b)/Math.abs(x.b)*100):'<span class="tag t-sea">חדש</span>'}</td></tr>`).join('')}
+      </tbody></table></div></div>
+  </div>
+
+  ${[['הגדילו הכי הרבה',grew,'va','t-red'],['הקטינו הכי הרבה',shrank,'va','t-moss'],
+     ['ספקים חדשים ב־'+S.yA,fresh,'va','t-sea'],['ספקים שנעלמו מאז '+S.yB,gone,'vb','t-mute']]
+    .map(([title,arr])=>`<div class="sec"><div class="sec-h"><h2 style="font-size:15px">${title} (${nf0.format(arr.length)})</h2></div>
+      <div class="tscroll"><table><thead><tr><th style="cursor:default">ספק</th><th style="cursor:default">סוג</th>
+        <th style="cursor:default" class="ta-e">${S.yA}</th><th style="cursor:default" class="ta-e">${S.yB}</th>
+        <th style="cursor:default" class="ta-e">שינוי ₪</th><th style="cursor:default" class="ta-e">%</th></tr></thead><tbody>
+        ${arr.slice(0,12).map(c=>`<tr><td>${esc(c.name)}</td><td>${esc(c.type)}</td>
+          <td class="ta-e num">${money(c.va)}</td><td class="ta-e num">${money(c.vb)}</td>
+          <td class="ta-e num" style="color:${c.d>0?'var(--red)':'var(--moss)'}">${c.d>0?'+':''}${money(c.d)}</td>
+          <td class="ta-e">${pctTag(c.pct)}</td></tr>`).join('')||'<tr><td colspan="6" style="color:var(--steel)">אין ממצאים</td></tr>'}
+      </tbody></table></div></div>`).join('')}`;
+  bindSpendBar();
+  $('#yA').onchange=e=>{S.yA=+e.target.value;render();};
+  $('#yB').onchange=e=>{S.yB=+e.target.value;render();};
+  $('#xYoY').onclick=()=>exportAoa([['ספק','מס׳ ספק','סוג',String(S.yA)+' ₪',String(S.yB)+' ₪','שינוי ₪','שינוי %']]
+    .concat(comp.sort((a,b)=>b.va-a.va).map(c=>[c.name,c.k,c.type,Math.round(c.va),Math.round(c.vb),Math.round(c.d),c.pct==null?'חדש':+c.pct.toFixed(1)])),
+    'השוואת ספנד '+S.yA+' מול '+S.yB);
+}
+
+/* ---------- דוחות תקופתיים ---------- */
+const PIVOT_DIM=[['supplier','ספק'],['type','סוג ספק'],['buyer','קניין'],['cat','קטגוריה'],['country','ארץ']];
+const PIVOT_PER=[['year','שנתי'],['qk','רבעוני'],['month','חודשי']];
+function renderSpendPivot(){
+  const p=$('#p-ppivot'),rows=spendFiltered();
+  const dim=S.pivotDim,per=S.pivotPer;
+  const dimFn=r=>dim==='supplier'?(r.supplier||r.key):(r[dim]||'—');
+  const perFn=r=>per==='year'?(r.year?String(r.year):null):r[per];
+  const periods=[...new Set(rows.map(perFn).filter(Boolean))].sort();
+  const shown=per==='month'?periods.slice(-24):per==='qk'?periods.slice(-16):periods;
+  const m=new Map();
+  rows.forEach(r=>{const d=dimFn(r),pk=perFn(r);if(!pk)return;
+    let g=m.get(d);if(!g){g={d,tot:0,cells:{}};m.set(d,g);}
+    g.cells[pk]=(g.cells[pk]||0)+(r.amount||0);g.tot+=r.amount||0;});
+  const list=[...m.values()].sort((a,b)=>b.tot-a.tot);
+  const totals={};shown.forEach(pk=>totals[pk]=list.reduce((s,g)=>s+(g.cells[pk]||0),0));
+  const grand=list.reduce((s,g)=>s+g.tot,0);
+  const perLabel=pk=>per==='qk'?('רבעון '+pk.slice(-1)+'/'+pk.slice(0,4)):per==='month'?monLabel(pk):pk;
+  p.innerHTML=`<div class="sec">${spendBar()}</div>
+  <div class="sec"><div class="filters">
+    <div class="fgrp" style="flex:0 1 180px"><label class="flab" for="pvD">חתך</label>
+      <select id="pvD">${PIVOT_DIM.map(([v,t])=>`<option value="${v}" ${dim===v?'selected':''}>${t}</option>`).join('')}</select></div>
+    <div class="fgrp" style="flex:0 1 180px"><label class="flab" for="pvP">תקופה</label>
+      <select id="pvP">${PIVOT_PER.map(([v,t])=>`<option value="${v}" ${per===v?'selected':''}>${t}</option>`).join('')}</select></div>
+    <div class="fgrp" style="flex:1 1 auto;align-self:flex-end"><span class="flab">&nbsp;</span>
+      <button class="btn btn-sm" id="xPiv">ייצוא הדוח</button></div>
+  </div></div>
+  <div class="sec">
+    <div class="sec-h"><h2>${PIVOT_DIM.find(x=>x[0]===dim)[1]} × ${PIVOT_PER.find(x=>x[0]===per)[1]}</h2>
+      <p>${nf0.format(list.length)} שורות · ${nf0.format(shown.length)} תקופות · סה״כ ${money(grand)}</p></div>
+    ${list.length?`<div class="tscroll"><table><thead><tr><th style="cursor:default">${PIVOT_DIM.find(x=>x[0]===dim)[1]}</th>
+      ${shown.map(pk=>`<th style="cursor:default" class="ta-e">${perLabel(pk)}</th>`).join('')}
+      <th style="cursor:default" class="ta-e">סה״כ</th></tr></thead><tbody>
+      ${list.slice(0,S.limit).map(g=>`<tr><td>${esc(g.d)}</td>
+        ${shown.map(pk=>{const v=g.cells[pk]||0;return `<td class="ta-e num" style="${v?'':'color:var(--faint)'}">${v?short(v):'—'}</td>`;}).join('')}
+        <td class="ta-e num" style="font-weight:500">${short(g.tot)}</td></tr>`).join('')}
+      </tbody><tfoot><tr style="background:var(--sunk)"><td style="font-weight:500">סה״כ</td>
+        ${shown.map(pk=>`<td class="ta-e num" style="font-weight:500">${short(totals[pk])}</td>`).join('')}
+        <td class="ta-e num" style="font-weight:500">${short(grand)}</td></tr></tfoot></table></div>
+      ${list.length>S.limit?`<div class="more"><button class="btn" id="pvmore">הצגת 150 נוספים</button></div>`:''}`
+    :'<div class="box empty"><b>אין נתונים</b>טענו דוח ספנד או הרחיבו את הסינון.</div>'}
+  </div>`;
+  bindSpendBar();
+  $('#pvD').onchange=e=>{S.pivotDim=e.target.value;render();};
+  $('#pvP').onchange=e=>{S.pivotPer=e.target.value;render();};
+  const pm=$('#pvmore');if(pm)pm.onclick=()=>{S.limit+=150;render();};
+  $('#xPiv').onclick=()=>exportAoa([[PIVOT_DIM.find(x=>x[0]===dim)[1]].concat(shown.map(perLabel)).concat(['סה״כ'])]
+    .concat(list.map(g=>[g.d].concat(shown.map(pk=>Math.round(g.cells[pk]||0))).concat([Math.round(g.tot)])))
+    .concat([['סה״כ'].concat(shown.map(pk=>Math.round(totals[pk]))).concat([Math.round(grand)])]),
+    'דוח ספנד '+PIVOT_PER.find(x=>x[0]===per)[1]);
+}
+
+/* ---------- תובנות ספנד ---------- */
+function renderSpendInsights(){
+  const p=$('#p-pins'),rows=spendFiltered(),tot=spendSum(rows);
+  const sups=spendGroup(rows,r=>r.key).sort((a,b)=>b.v-a.v);
+  const yrs=spendYears(),last=yrs[yrs.length-1],prev=yrs[yrs.length-2];
+  const blocks=[];
+  const top10=sups.slice(0,10),top10v=spendSum(top10.flatMap(g=>g.rows));
+  blocks.push({id:'conc',sev:'sea',title:'ריכוזיות הוצאה',
+    why:`10 הספקים הגדולים מרכזים ${tot?(top10v/tot*100).toFixed(1):0}% מההוצאה. ריכוז גבוה מוזיל רכש אך מגדיל תלות.`,
+    cols:['ספק','סוג','ספנד','% מהסך','תנועות'],
+    rows:top10.map(g=>[esc(g.rows[0].supplier||g.k),esc(g.rows[0].type),money(g.v),(g.v/tot*100).toFixed(1)+'%',nf0.format(g.n)]),
+    raw:top10});
+  const tail=sups.filter(g=>g.v<tot*0.001&&g.v>0);
+  blocks.push({id:'tail',sev:'amb',title:'זנב ספקים קטנים',
+    why:`${nf0.format(tail.length)} ספקים בסכום מצטבר של ${money(spendSum(tail.flatMap(g=>g.rows)))} בלבד, כל אחד מתחת ל-0.1% מההוצאה. כל אחד מהם עולה בעלות תפעולית של פתיחת ספק, הזמנה, קליטה ותשלום — מועמדים לאיחוד או לכרטיס אשראי רכש.`,
+    cols:['ספק','סוג','ספנד','תנועות','ממוצע לתנועה'],
+    rows:tail.slice(0,20).map(g=>[esc(g.rows[0].supplier||g.k),esc(g.rows[0].type),money(g.v),g.n,money(g.v/g.n)]),raw:tail});
+  const single=sups.filter(g=>g.n===1&&g.v>50000).sort((a,b)=>b.v-a.v);
+  blocks.push({id:'one',sev:'amb',title:'הוצאה חד־פעמית גדולה',
+    why:'תנועה אחת בלבד מעל ₪50K. כדאי לבדוק אם זו רכישה חריגה שהצדיקה מכרז, או ספק שנבחר בלי תחרות.',
+    cols:['ספק','תאריך','אסמכתא','תיאור','סכום'],
+    rows:single.slice(0,15).map(g=>[esc(g.rows[0].supplier||g.k),dstr(g.rows[0].date),esc(g.rows[0].doc||'—'),esc((g.rows[0].desc||'').slice(0,40)),money(g.v)]),raw:single});
+  const noMaster=spendGroup(rows.filter(r=>!r.sup),r=>r.key).sort((a,b)=>b.v-a.v);
+  blocks.push({id:'nm',sev:'red',title:'ספקים שאינם בקובץ האב',
+    why:'הופיעו בדוח הספנד אך לא נמצאו בקובץ הספקים לפי מספר או שם. או שקובץ האב לא עדכני, או שההוצאה עקפה את תהליך הרכש.',
+    cols:['ספק','מזהה','ספנד','תנועות','קניין'],
+    rows:noMaster.slice(0,20).map(g=>[esc(g.rows[0].supplier||'—'),esc(g.k),money(g.v),g.n,esc(g.rows[0].buyer||'—')]),raw:noMaster});
+  if(last&&prev){
+    const A=rows.filter(r=>r.year===last),B=rows.filter(r=>r.year===prev);
+    const ma=new Map(spendGroup(A,r=>r.key).map(g=>[g.k,g])),mb=new Map(spendGroup(B,r=>r.key).map(g=>[g.k,g]));
+    const jump=[...ma.values()].filter(g=>{const b=mb.get(g.k);return b&&b.v>0&&g.v>b.v*1.5&&g.v-b.v>50000;})
+      .sort((a,b)=>(b.v-mb.get(b.k).v)-(a.v-mb.get(a.k).v));
+    blocks.push({id:'jump',sev:'red',title:`ספקים שקפצו ביותר מ-50% ב-${last}`,
+      why:`לעומת ${prev}, ובתוספת של מעל ₪50K. בדקו עליית מחירים, הרחבת היקף או פיצול שהלך לכיוון ספק אחד.`,
+      cols:['ספק','סוג',String(prev),String(last),'שינוי','%'],
+      rows:jump.slice(0,15).map(g=>{const b=mb.get(g.k);return[esc(g.rows[0].supplier||g.k),esc(g.rows[0].type),
+        money(b.v),money(g.v),money(g.v-b.v),`<span class="tag t-red">+${((g.v-b.v)/b.v*100).toFixed(0)}%</span>`];}),raw:jump});
+  }
+  const po=poBySupplier();
+  const spendNoPo=sups.filter(g=>!po.has(g.k)&&g.v>200000);
+  blocks.push({id:'nopo',sev:'sea',title:'ספנד גבוה ללא הזמנות פתוחות',
+    why:'מעל ₪200K הוצאה בתקופה, ואף שורה פתוחה בדוח ההזמנות הנוכחי. או שההתקשרות הסתיימה, או שההוצאה מתבצעת בלי הזמנת רכש.',
+    cols:['ספק','סוג','ספנד','תנועות','הוצאה אחרונה'],
+    rows:spendNoPo.slice(0,20).map(g=>[esc(g.rows[0].supplier||g.k),esc(g.rows[0].type),money(g.v),g.n,
+      dstr(g.rows.map(r=>r.date).filter(Boolean).sort().pop())]),raw:spendNoPo});
+
+  p.innerHTML=`<div class="sec">${spendBar()}</div>
+  <div class="sec"><div class="sec-h"><h2>תובנות והמלצות</h2>
+    <p>נגזרות מהתקופה והסינון שבתצוגה, ומוצלבות מול קובץ הספקים ודוח ההזמנות.</p></div></div>`
+  +blocks.map(b=>`<div class="rec sev-${b.sev}">
+    <div class="rec-h"><h3>${b.title}</h3><span class="why">${b.why}</span>
+      <span class="cnt">${nf0.format(b.raw.length)}</span>
+      <button class="btn btn-sm" data-xi="${b.id}">ייצוא</button></div>
+    <div class="rec-b">${b.rows.length?`<div class="tscroll" style="border:0"><table><thead><tr>${b.cols.map(c=>`<th style="cursor:default">${c}</th>`).join('')}</tr></thead>
+      <tbody>${b.rows.map(r=>'<tr>'+r.map(c=>`<td>${c}</td>`).join('')+'</tr>').join('')}</tbody></table></div>`
+      :'<div class="empty">אין ממצאים.</div>'}</div></div>`).join('');
+  bindSpendBar();
+  p.querySelectorAll('[data-xi]').forEach(b=>b.onclick=()=>{
+    const x=blocks.find(y=>y.id===b.dataset.xi);
+    exportAoa([['ספק','מזהה','סוג','ספנד ₪','תנועות']].concat(x.raw.map(g=>[g.rows[0].supplier||'',g.k,g.rows[0].type,Math.round(g.v),g.n])),x.title);
+  });
+}
+
+/* ---------- טעינה ומיפוי ידני ---------- */
+function renderSpendLoad(){
+  const pend=S.pPending;
+  $('#p-pload').innerHTML=`<div class="sec"><div class="sec-h"><h2>טעינת דוח הספנד</h2>
+    <p>דוח ההוצאות בפועל מ-Priority — חשבוניות, תנועות רכש או כל דוח שיש בו תאריך, ספק וסכום. נפרד לחלוטין משני הקבצים האחרים.</p></div>
+    <div class="drop" id="pdrop">גררו לכאן את דוח הספנד, או <button class="btn btn-sm" id="ppick" style="margin:0 4px">בחרו קובץ</button></div>
+    <div class="note">דוח ספנד נוכחי: <b>${S.spend.length?esc(S.spendLabel):'לא נטען'}</b>${S.spend.length?' · '+nf0.format(S.spend.length)+' תנועות · '+money(spendSum(S.spend)):''}</div></div>
+    ${pend?`<div class="sec"><div class="sec-h"><h2>מיפוי עמודות</h2>
+      <p>לא זיהיתי אוטומטית את כל השדות הדרושים. בחרו ידנית איזו עמודה בקובץ מתאימה לכל שדה. שדות חובה מסומנים.</p></div>
+      <div class="box box-p"><div class="fgrid">
+      ${Object.keys(SPEND_ALIAS).map(k=>`<label><span class="flab">${SPEND_LABEL[k]}${SPEND_REQ.indexOf(k)>-1?' <b style="color:var(--red)">*</b>':''}</span>
+        <select data-map="${k}"><option value="">—</option>
+        ${pend.headers.map((h,i)=>`<option value="${i}" ${pend.map[k]===i?'selected':''}>${esc(String(h||('עמודה '+(i+1))))}</option>`).join('')}
+        </select></label>`).join('')}
+      </div>
+      <div style="margin-top:12px;display:flex;gap:8px"><button class="btn btn-solid btn-sm" id="pmapOk">טעינה לפי המיפוי</button>
+        <button class="btn btn-sm" id="pmapCancel">ביטול</button></div></div>
+      <div class="sec-h" style="margin-top:16px"><h2 style="font-size:15px">תצוגה מקדימה של הקובץ</h2></div>
+      <div class="tscroll"><table><thead><tr>${pend.headers.map(h=>`<th style="cursor:default">${esc(String(h||''))}</th>`).join('')}</tr></thead>
+        <tbody>${pend.sample.map(r=>'<tr>'+pend.headers.map((_,i)=>`<td>${esc(String(r[i]==null?'':r[i])).slice(0,30)}</td>`).join('')+'</tr>').join('')}</tbody></table></div>
+      </div>`:''}
+    <div class="sec"><div class="sec-h"><h2>עמודות שמזוהות אוטומטית</h2>
+      <p>החיבור לקובץ הספקים נעשה לפי מספר ספק, ואם אין — לפי שם ספק מדויק.</p></div>
+      <div class="tscroll"><table><thead><tr><th style="cursor:default">שדה</th><th style="cursor:default">חובה</th><th style="cursor:default">כותרות מזוהות</th></tr></thead><tbody>
+      ${Object.keys(SPEND_ALIAS).map(k=>`<tr><td>${SPEND_LABEL[k]}</td>
+        <td>${SPEND_REQ.indexOf(k)>-1?'<span class="tag t-red">חובה</span>':'<span style="color:var(--faint)">אופציונלי</span>'}</td>
+        <td style="color:var(--steel);font-size:12.5px">${esc(SPEND_ALIAS[k].join(' · '))}</td></tr>`).join('')}
+      </tbody></table></div></div>`;
+  const d=$('#pdrop');
+  $('#ppick').onclick=()=>$('#pfile').click();
+  ['dragenter','dragover'].forEach(ev=>d.addEventListener(ev,e=>{e.preventDefault();d.classList.add('hot');}));
+  ['dragleave','drop'].forEach(ev=>d.addEventListener(ev,e=>{e.preventDefault();d.classList.remove('hot');}));
+  d.addEventListener('drop',e=>{if(e.dataTransfer.files[0])readSpendFile(e.dataTransfer.files[0]);});
+  if(pend){
+    $('#p-pload').querySelectorAll('[data-map]').forEach(s=>s.onchange=()=>{
+      const v=s.value===''?undefined:+s.value;
+      if(v===undefined)delete pend.map[s.dataset.map];else pend.map[s.dataset.map]=v;});
+    $('#pmapOk').onclick=()=>{
+      const miss=SPEND_REQ.filter(k=>pend.map[k]===undefined);
+      if(miss.length){toast('חסרים שדות חובה: '+miss.map(k=>SPEND_LABEL[k]).join(', '));return;}
+      buildSpend(pend.aoa,pend.hi,pend.map,pend.name);};
+    $('#pmapCancel').onclick=()=>{S.pPending=null;render();};
+  }
+}
+function buildSpend(aoa,hi,map,name){
+  const out=[];
+  for(let i=hi+1;i<aoa.length;i++){
+    const a=aoa[i]; if(!a||a.every(c=>c==null||c===''))continue;
+    const o={};
+    for(const k in map){const v=a[map[k]];
+      o[k]=k==='date'?toDate(v):(SPEND_NUM.indexOf(k)>-1?toNum(v):clean(v));}
+    if(!o.date&&!o.supplier)continue;
+    if(o.amount==null)o.amount=0;
+    out.push(o);
+  }
+  if(!out.length){toast('לא נמצאו שורות נתונים');return;}
+  S.spend=deriveSpend(out);S.spendLabel=name;S.pPending=null;
+  S.pd=newSpendFilters();S.pf=newSpendFilters();S.yA=null;S.yB=null;S.limit=150;S.tab='pover';
+  try{store('spenddata',{rows:S.spend.map(r=>{const o={};Object.keys(SPEND_ALIAS).forEach(k=>o[k]=r[k]??null);return o;}),label:name});}
+  catch(e){toast('הדוח נטען אך גדול מכדי להישמר בדפדפן');}
+  toast('נטענו '+nf0.format(out.length)+' תנועות · '+money(spendSum(S.spend)),5000);
+  render();
+}
+function readSpendFile(file){
+  const fr=new FileReader();
+  fr.onerror=()=>toast('לא ניתן לקרוא את הקובץ');
+  fr.onload=e=>{
+    try{
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',cellDates:true});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const aoa=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null,blankrows:false});
+      if(!aoa.length)throw new Error('הגיליון ריק');
+      let hi=0,best=-1;
+      for(let i=0;i<Math.min(12,aoa.length);i++){
+        const n=Object.keys(mapHeadersWith(aoa[i],SPEND_ALIAS)).length;if(n>best){best=n;hi=i;}
+      }
+      const map=mapHeadersWith(aoa[hi],SPEND_ALIAS);
+      const name=file.name.replace(/\.(xlsx|xls|csv)$/i,'');
+      const miss=SPEND_REQ.filter(k=>map[k]===undefined);
+      if(miss.length){
+        S.pPending={headers:aoa[hi],aoa,hi,map,name,sample:aoa.slice(hi+1,hi+6)};
+        S.mode='spend';S.tab='pload';render();
+        toast('לא זוהו: '+miss.map(k=>SPEND_LABEL[k]).join(', ')+'. מפו ידנית למטה.',6500);
+        return;
+      }
+      buildSpend(aoa,hi,map,name);
+    }catch(err){toast('שגיאה: '+(err.message||'הקובץ לא נקרא'),6000);}
+  };
+  fr.readAsArrayBuffer(file);
+}
+
+/* ---------- tabs & shell ---------- */
+const TABS=[
+  {id:'track',m:'po',t:'מעקב ובקרה',r:renderTrack,n:()=>filtered().length},
+  {id:'bad',m:'po',t:'סטטוסים לא תקינים',r:renderBad,n:()=>filtered().filter(isBad).length},
+  {id:'fin',m:'po',t:'חשיפה פיננסית',r:renderFin},
+  {id:'rec',m:'po',t:'המלצות לפעולה',r:renderRec,n:()=>recommendations().reduce((s,x)=>s+x.rows.length,0)},
+  {id:'crit',m:'po',t:'פריטים קריטיים',r:renderCrit},
+  {id:'load',m:'po',t:'טעינת דוח הזמנות',r:renderLoad},
+  {id:'sover',m:'sup',t:'סקירת ספקים',r:renderSupOverview,n:()=>supFiltered().length},
+  {id:'scard',m:'sup',t:'כרטיס ספק',r:renderSupCard},
+  {id:'srisk',m:'sup',t:'סיכונים ואיכות נתונים',r:renderSupRisk},
+  {id:'sup',m:'sup',t:'ביצועי אספקה',r:renderSup,n:()=>new Set(filtered().map(r=>r.supplier)).size},
+  {id:'sload',m:'sup',t:'טעינת קובץ ספקים',r:renderSupLoad},
+  {id:'pover',m:'spend',t:'סקירת ספנד',r:renderSpendOverview,n:()=>spendFiltered().length},
+  {id:'pyoy',m:'spend',t:'השוואת שנים',r:renderSpendYoY},
+  {id:'ppivot',m:'spend',t:'דוחות תקופתיים',r:renderSpendPivot},
+  {id:'pins',m:'spend',t:'תובנות והמלצות',r:renderSpendInsights},
+  {id:'pload',m:'spend',t:'טעינת דוח ספנד',r:renderSpendLoad}
+];
+const modeTabs=()=>TABS.filter(t=>t.m===S.mode);
+function renderRail(){
+  $('#modes').querySelectorAll('.mode').forEach(b=>b.setAttribute('aria-pressed',b.dataset.m===S.mode));
+  $('#rail').innerHTML=modeTabs().map(t=>`<button class="tab" role="tab" data-t="${t.id}" aria-selected="${S.tab===t.id}">${t.t}${t.n?`<span class="cnt">${nf0.format(t.n())}</span>`:''}</button>`).join('')
+    +`<span style="flex:1 0 12px"></span><span class="rail-ref">${refreshBtn('','↻ רענון')}</span>`;
+  $('#rail').querySelectorAll('.tab').forEach(b=>b.onclick=()=>{S.tab=b.dataset.t;S.limit=150;render();window.scrollTo({top:0,behavior:'smooth'});});
+}
+function bindRefresh(){
+  document.querySelectorAll('[data-refresh]').forEach(b=>{
+    b.onclick=()=>{
+      if(S.mode==='sup'){applySupFilters();toast('תצוגת הספקים רועננה');}
+      else if(S.mode==='spend'){applySpendFilters();toast('תצוגת הספנד רועננה');}
+      else{applyFilters();toast(S.f.buyers.size?'הוצג מחדש עבור '+S.f.buyers.size+' קניינים':'התצוגה רועננה');}
+    };
+  });
+}
+function render(){
+  if(!modeTabs().some(t=>t.id===S.tab))S.tab=modeTabs()[0].id;
+  if(S.mode==='po'&&!S.rows.length)S.tab='load';
+  if(S.mode==='sup'&&!S.sup.length)S.tab='sload';
+  if(S.mode==='spend'&&!S.spend.length)S.tab='pload';
+  renderMeta();renderRail();
+  $('#btnLoad').textContent=S.mode==='sup'?'טעינת קובץ ספקים':S.mode==='spend'?'טעינת דוח ספנד':'טעינת דוח הזמנות';
+  $('#footMeta').textContent=S.mode==='sup'
+    ? S.supLabel+' · '+nf0.format(S.sup.length)+' ספקים · עודכן '+dstr(todayISO())
+    : S.mode==='spend'
+    ? (S.spend.length?S.spendLabel+' · '+nf0.format(S.spend.length)+' תנועות':'דוח ספנד טרם נטען')+' · '+dstr(todayISO())
+    : S.label+' · '+nf0.format(S.rows.length)+' שורות · עודכן '+dstr(todayISO());
+  TABS.forEach(t=>{const n=$('#p-'+t.id);n.classList.toggle('on',t.id===S.tab);if(t.id!==S.tab)n.innerHTML='';});
+  TABS.find(t=>t.id===S.tab).r();
+  bindRefresh();
+}
+
+/* ---------- shell events ---------- */
+/* ---------- אתחול קובץ הספקים ---------- */
+S.sup=deriveSup(fromSeedSup());
+S.supLabel=seedSup.source;
+S.sf=newSupFilters();S.sd=newSupFilters();
+S.pf=newSpendFilters();S.pd=newSpendFilters();
+const savedSpend=store('spenddata');
+if(savedSpend&&savedSpend.rows&&savedSpend.rows.length){S.spend=deriveSpend(savedSpend.rows);S.spendLabel=savedSpend.label;}
+const savedSup=store('supdata');
+if(savedSup&&savedSup.rows&&savedSup.rows.length){S.sup=deriveSup(savedSup.rows);S.supLabel=savedSup.label;S.supCustom=true;}
+
+$('#modes').onclick=e=>{const b=e.target.closest('.mode');if(!b)return;
+  S.mode=b.dataset.m;S.tab=modeTabs()[0].id;S.limit=150;render();window.scrollTo({top:0,behavior:'smooth'});};
+$('#btnLoad').onclick=()=>$(S.mode==='sup'?'#sfile':S.mode==='spend'?'#pfile':'#file').click();
+$('#file').onchange=e=>{if(e.target.files[0])readFile(e.target.files[0]);e.target.value='';};
+$('#sfile').onchange=e=>{if(e.target.files[0])readSupFile(e.target.files[0]);e.target.value='';};
+$('#pfile').onchange=e=>{if(e.target.files[0])readSpendFile(e.target.files[0]);e.target.value='';};
+$('#btnReset').onclick=()=>{
+  S.rows=derive(fromSeed());S.label=seed.source+' · '+dstr(seed.snapshot);S.custom=false;
+  S.d=newFilters();S.f=newFilters();S.dirty=false;S.limit=150;
+  try{localStorage.removeItem('galam.data');}catch(e){}
+  toast('הנתונים נוקו');render();
+};
+const theme=store('theme'); if(theme)document.documentElement.dataset.theme=theme;
+$('#btnTheme').onclick=()=>{
+  const cur=document.documentElement.dataset.theme||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');
+  const nx=cur==='dark'?'light':'dark';document.documentElement.dataset.theme=nx;store('theme',nx);
+};
+['dragover','drop'].forEach(ev=>document.addEventListener(ev,e=>{
+  if(e.dataTransfer&&[...e.dataTransfer.types].indexOf('Files')>-1){e.preventDefault();
+    if(ev==='drop'&&e.dataTransfer.files[0])(S.mode==='sup'?readSupFile:S.mode==='spend'?readSpendFile:readFile)(e.dataTransfer.files[0]);}
+}));
+
+render();
+})();
+</script>
+</body>
+</html>
