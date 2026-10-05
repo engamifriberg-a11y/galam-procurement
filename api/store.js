@@ -4,7 +4,7 @@
 // DELETE /api/store?key=data → מחיקה
 import { neon } from '@neondatabase/serverless';
 
-const KEYS = new Set(['data', 'supdata', 'spenddata', 'supmeta', 'crit', 'ok', 'itemdata']);
+const KEYS = new Set(['data', 'supdata', 'spenddata', 'supmeta', 'crit', 'ok', 'itemdata', 'orddata']);
 let ready = null;
 
 function db() {
