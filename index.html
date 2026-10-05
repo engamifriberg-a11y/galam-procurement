@@ -230,6 +230,7 @@ tbody tr.late:hover td{filter:brightness(.97)}
       <button class="mode" data-m="sup">ניהול ספקים</button>
       <button class="mode" data-m="spend">ניתוח ספנד</button>
       <button class="mode" data-m="item">ניהול פריטים</button>
+      <button class="mode" data-m="ord">הזמנות לספקים</button>
     </div>
     <div class="mast-act">
       <button class="btn btn-solid" id="btnLoad">טעינת קובץ</button>
@@ -239,6 +240,7 @@ tbody tr.late:hover td{filter:brightness(.97)}
       <input type="file" id="sfile" accept=".xlsx,.xls,.csv" class="hide">
       <input type="file" id="pfile" accept=".xlsx,.xls,.csv" class="hide">
       <input type="file" id="ifile" accept=".xlsx,.xls,.csv" class="hide">
+      <input type="file" id="ofile" accept=".xlsx,.xls,.csv" class="hide">
     </div>
   </div>
 </header>
@@ -263,6 +265,13 @@ tbody tr.late:hover td{filter:brightness(.97)}
   <section class="panel" id="p-ppivot"></section>
   <section class="panel" id="p-pins"></section>
   <section class="panel" id="p-pload"></section>
+  <section class="panel" id="p-oexec"></section>
+  <section class="panel" id="p-osup"></section>
+  <section class="panel" id="p-oseg"></section>
+  <section class="panel" id="p-opay"></section>
+  <section class="panel" id="p-octrl"></section>
+  <section class="panel" id="p-orec"></section>
+  <section class="panel" id="p-oload"></section>
   <section class="panel" id="p-iover"></section>
   <section class="panel" id="p-ispend"></section>
   <section class="panel" id="p-isup"></section>
@@ -436,6 +445,7 @@ const S={
   sf:null,sd:null,
   spend:[],spendLabel:'',pf:null,pd:null,pPending:null,
   items:[],itemLabel:'',itd:null,itf:null,itemSel:null,isort:null,itemBusy:'',
+  ord:[],ordLabel:'',od:null,of:null,ordBusy:'',oMax:'',oDim:'stype',
   yA:null,yB:null,pivotDim:'supplier',pivotPer:'year',
   supMeta:store('supmeta')||{},
   supSel:null,
@@ -603,6 +613,7 @@ function exportAoa(aoa,name){
    ============================================================ */
 function renderMeta(){
   if(S.mode==='item'){renderItemMeta();return;}
+  if(S.mode==='ord'){renderOrdMeta();return;}
   if(S.mode==='spend'){
     const rows=S.spend.length?spendFiltered():[],tot=spendSum(rows);
     const sups=spendGroup(rows,r=>r.key),yrs=[...new Set(rows.map(r=>r.year).filter(Boolean))].sort();
@@ -2488,6 +2499,521 @@ function renderItemMeta(){
   ].map(x=>`<div class="gauge ${x.c||''}"><div class="gauge-k">${x.k}</div><div class="gauge-v">${x.v}</div><div class="gauge-s">${x.s}</div></div>`).join('');
 }
 
+/* ============================================================
+   מודול הזמנות רכש שיצאו לספקים — דוח כותרות הזמנות מ-Priority
+   ניתוח ספנד, ספקים, פילוחים, תנאי תשלום, בקרה והמלצות
+   ============================================================ */
+const ORD_ALIAS={
+  po:['הזמנה'],date:['תאריך'],supNo:['מסספק'],sup:['שםספק'],status:['סטטוס'],
+  ptype:['תאורסוגהזמנתרכש'],stype:['תאורסוגספק'],buyer:['לטיפול'],req:['עבורמשתמש'],
+  curr:['מטבע'],orig:['מחירכולל','מחיראחריהנחה'],ils:['סהכבמטבעראשי'],
+  payCode:['תנאיתשלום'],payDesc:['תנאיתשלום'],
+  rem:['פרטיםמורחבהערותלחותמים'],det:['פרטים'],proj:['תאורפרויקט'],dept:['שםמחלקה'],
+  inco:['תנאייבואלהזמנתהרכש'],country:['מדינתמוצא'],appr:['מאושרת?'],frame:['הזמנתמסגרת']
+};
+const ORD_KEYS=Object.keys(ORD_ALIAS);
+const ORD_NUM=['orig','ils'];
+const ORD_DIMS=[['stype','סוג ספק'],['ptype','סוג הזמנה'],['buyer','קניין מטפל'],['req','עבור משתמש'],['payDesc','תנאי תשלום'],
+  ['curr','מטבע'],['proj','פרויקט'],['dept','מחלקה'],['country','מדינת מוצא'],['inco','תנאי סחר (Incoterms)'],['status','סטטוס']];
+const ORD_LABEL=Object.assign({po:'הזמנה',date:'תאריך',supNo:'מס׳ ספק',sup:'שם ספק',orig:'סכום במטבע ההזמנה',ils:'סה״כ בשקלים',
+  payCode:'קוד תנאי תשלום',rem:'הערות לחותמים',det:'פרטים',appr:'מאושרת',frame:'הזמנת מסגרת'},Object.fromEntries(ORD_DIMS));
+
+async function packRows(rows,keys){
+  const json=JSON.stringify({keys,rows:rows.map(r=>keys.map(k=>r[k]??null))});
+  const buf=new Uint8Array(await new Response(new Blob([json]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer());
+  let s='';for(let i=0;i<buf.length;i+=0x8000)s+=String.fromCharCode.apply(null,buf.subarray(i,i+0x8000));
+  return btoa(s);
+}
+const unpackRows=unpackItems;
+
+/* ימי אשראי מקוד תנאי התשלום: E=שוטף (+15 ממוצע), N=מתאריך חשבונית, CASH/PP=מיידי */
+function payDays(code){
+  if(!code)return null;const c=String(code).toUpperCase();
+  if(c==='CASH'||c.startsWith('PP'))return 0;
+  const m=c.match(/^(E|N|BL)(\d+)/);if(!m)return null;
+  return +m[2]+(m[1]==='E'?15:0);
+}
+function deriveOrd(list){
+  /* שער ממוצע לכל מטבע, מהשורות שבהן Priority כבר המיר לשקלים — להשלמת שורות שלא הומרו */
+  const fx={};list.forEach(r=>{ORD_NUM.forEach(k=>{if(typeof r[k]==='string')r[k]=toNum(r[k]);});
+    if(r.curr&&r.curr!=='ILS'&&r.orig>0&&r.ils>0&&Math.abs(r.ils/r.orig-1)>0.05){const f=fx[r.curr]||(fx[r.curr]={a:0,b:0});f.a+=r.ils;f.b+=r.orig;}});
+  let maxD='';
+  list.forEach(r=>{
+    r.ils=r.ils||0;r.fxEst=false;
+    if(r.curr&&r.curr!=='ILS'&&r.orig>0&&Math.abs(r.ils/r.orig-1)<=0.05&&fx[r.curr]){r.ils=r.orig*fx[r.curr].a/fx[r.curr].b;r.fxEst=true;}
+    r.year=r.date?+r.date.slice(0,4):null;r.month=r.date?r.date.slice(0,7):null;r.md=r.date?r.date.slice(5):null;
+    r.cancel=r.status==='מבוטלת';
+    r.cover=/כיסוי/.test((r.rem||'')+' '+(r.det||''));
+    r.days=payDays(r.payCode);
+    r.payDesc=r.payDesc||r.payCode||'—';
+    r.stype=r.stype||'ללא סיווג';r.ptype=r.ptype||'ללא סוג';r.buyer=r.buyer||'—';
+    r.sk=(r.supNo&&String(r.supNo).trim())||r.sup||'—';
+    if(r.date&&r.date>maxD)maxD=r.date;
+    r.hay=((r.po||'')+' '+(r.sup||'')+' '+(r.supNo||'')+' '+(r.det||'')+' '+(r.rem||'')+' '+(r.proj||'')+' '+r.buyer+' '+(r.req||'')).toLowerCase();
+  });
+  S.oMax=maxD;S.oFx=Object.fromEntries(Object.entries(fx).map(([k,f])=>[k,f.a/f.b]));
+  return list;
+}
+function newOrdF(){return{years:new Set(),stypes:new Set(),ptypes:new Set(),buyers:new Set(),currs:new Set(),q:'',withCancel:false,minAmt:0};}
+function cloneOrdF(f){return{years:new Set(f.years),stypes:new Set(f.stypes),ptypes:new Set(f.ptypes),buyers:new Set(f.buyers),currs:new Set(f.currs),
+  q:f.q,withCancel:f.withCancel,minAmt:f.minAmt};}
+function applyOrdF(){S.of=cloneOrdF(S.od);S.dirty=false;S.limit=150;S._oCache=null;render();}
+function ordFiltered(noYears){
+  const key=(noYears?'n':'y');S._oCache=S._oCache||{};if(S._oCache[key])return S._oCache[key];
+  const f=S.of,q=f.q.toLowerCase().trim();
+  return S._oCache[key]=S.ord.filter(r=>{
+    if(!f.withCancel&&r.cancel)return false;
+    if(!noYears&&f.years.size&&!f.years.has(String(r.year)))return false;
+    if(f.stypes.size&&!f.stypes.has(r.stype))return false;
+    if(f.ptypes.size&&!f.ptypes.has(r.ptype))return false;
+    if(f.buyers.size&&!f.buyers.has(r.buyer))return false;
+    if(f.currs.size&&!f.currs.has(r.curr||'—'))return false;
+    if(f.minAmt&&r.ils<f.minAmt)return false;
+    if(q&&r.hay.indexOf(q)<0)return false;
+    return true;
+  });
+}
+const oSum=a=>a.reduce((s,r)=>s+r.ils,0);
+function oGroup(arr,fn){
+  const m=new Map();
+  arr.forEach(r=>{const k=fn(r);if(k==null||k==='')return;let g=m.get(k);if(!g){g={k,n:0,v:0,rows:[]};m.set(k,g);}g.n++;g.v+=r.ils;g.rows.push(r);});
+  return [...m.values()];
+}
+const oYears=()=>[...new Set(S.ord.map(r=>r.year).filter(Boolean))].sort((a,b)=>a-b);
+/* השוואה הוגנת: אותה תקופה מתחילת השנה (עד היום והחודש של התאריך האחרון בדוח) */
+function oYtd(){const y=S.oMax?+S.oMax.slice(0,4):null;return{y,py:y-1,md:S.oMax?S.oMax.slice(5):'12-31'};}
+const inYtd=(r,y)=>r.year===y&&r.md<=oYtd().md;
+function oPartialYears(){
+  const out=new Set(),{y}=oYtd();if(y)out.add(y);
+  oYears().forEach(yy=>{const first=S.ord.filter(r=>r.year===yy).reduce((m,r)=>!m||r.date<m?r.date:m,'');if(first&&first.slice(5)>'02-15')out.add(yy);});
+  return out;
+}
+function supAgg(rows){
+  const {y,py}=oYtd(),m=new Map();
+  rows.forEach(r=>{let g=m.get(r.sk);
+    if(!g){g={k:r.sk,name:r.sup||r.sk,type:r.stype,n:0,v:0,first:r.date,last:r.date,buyers:new Map(),pays:new Map(),currs:new Map(),ya:0,yb:0,small:0,cover:0,rows:[]};m.set(r.sk,g);}
+    g.n++;g.v+=r.ils;g.rows.push(r);if(r.date<g.first)g.first=r.date;if(r.date>g.last)g.last=r.date;
+    g.buyers.set(r.buyer,(g.buyers.get(r.buyer)||0)+1);g.pays.set(r.payDesc,(g.pays.get(r.payDesc)||0)+r.ils);
+    g.currs.set(r.curr||'—',(g.currs.get(r.curr||'—')||0)+r.ils);
+    if(inYtd(r,y))g.ya+=r.ils;if(inYtd(r,py))g.yb+=r.ils;if(r.ils<5000)g.small++;if(r.cover)g.cover+=r.ils;});
+  const arr=[...m.values()].sort((a,b)=>b.v-a.v),tot=arr.reduce((s,g)=>s+g.v,0)||1;let cum=0;
+  arr.forEach(g=>{cum+=g.v;g.cum=cum/tot;g.share=g.v/tot;g.abc=g.cum-g.share<0.8?'A':g.cum-g.share<0.95?'B':'C';
+    g.mainBuyer=[...g.buyers.entries()].sort((a,b)=>b[1]-a[1])[0][0];g.mainPay=[...g.pays.entries()].sort((a,b)=>b[1]-a[1])[0][0];
+    g.mainCurr=[...g.currs.entries()].sort((a,b)=>b[1]-a[1])[0][0];});
+  return arr;
+}
+const pct=(a,b)=>b?(a/b*100).toFixed(a/b<0.1?1:0)+'%':'—';
+const chg=(a,b)=>b?((a-b)/Math.abs(b)*100):null;
+const chgTag=(a,b)=>{const c=chg(a,b);if(c==null)return '<span style="color:var(--faint)">חדש</span>';
+  return `<span class="num" style="color:${c>0?'var(--red)':'var(--moss)'}">${c>0?'+':''}${c.toFixed(0)}%</span>`;};
+
+/* ---------- סרגל סינון ---------- */
+function ordBar(){
+  const d=S.od,all=S.ord.filter(r=>!r.cancel);
+  const chip=(id,key,label,items)=>`<div class="fgrp" style="flex:1 1 220px"><span class="flab">${label}${d[key].size?' ('+d[key].size+')':''}</span>
+    <div class="chips" id="${id}">${items.map(([k,n])=>`<button class="chip" data-v="${esc(k)}" aria-pressed="${d[key].has(String(k))}">${esc(k)}<span class="n">${nf0.format(n)}</span></button>`).join('')}</div></div>`;
+  const yrs=oYears().map(y=>[String(y),all.filter(r=>r.year===y).length]);
+  const adv=d.ptypes.size+d.buyers.size+d.currs.size;
+  return `<div class="filters">
+    <div class="fgrp" style="flex:1 1 200px"><label class="flab" for="oq">חיפוש</label>
+      <input type="search" id="oq" placeholder="ספק, הזמנה, פרויקט, הערה…" value="${esc(d.q)}"></div>
+    ${chip('oYear','years','שנים',yrs)}
+    ${chip('oSt','stypes','סוג ספק',uniq(all,'stype').slice(0,14))}
+    <details style="flex:1 1 100%" ${adv||S.oAdv?'open':''} id="oAdv">
+      <summary style="cursor:pointer;font-size:12.5px;color:var(--steel)">סינון נוסף: סוג הזמנה, קניין, מטבע, סכום${adv?' ('+adv+' נבחרו)':''}</summary>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:10px">
+      ${chip('oPt','ptypes','סוג הזמנה',uniq(all,'ptype').slice(0,16))}
+      ${chip('oBy','buyers','קניין מטפל',uniq(all,'buyer').slice(0,14))}
+      ${chip('oCu','currs','מטבע',uniq(all,'curr'))}
+      <div class="fgrp" style="flex:0 1 160px"><label class="flab" for="oMin">סכום הזמנה מינימלי (₪)</label>
+        <input type="text" id="oMin" inputmode="numeric" value="${d.minAmt||''}" placeholder="0"></div></div></details>
+    <div class="fgrp" style="flex:1 1 200px"><span class="flab">הצגה</span>
+      <label class="ck"><input type="checkbox" id="oCan" ${d.withCancel?'checked':''}>לכלול הזמנות מבוטלות</label></div>
+    <div class="fgrp" style="flex:0 1 auto;align-self:flex-end;display:flex;gap:6px">
+      ${refreshBtn('','רענון תצוגה')}<button class="btn btn-sm" id="oClr">איפוס סינון</button></div>
+  </div>`;
+}
+function bindOrdBar(){
+  const d=S.od,q=$('#oq');
+  if(q){q.oninput=()=>{d.q=q.value;markDirty();};q.onkeydown=e=>{if(e.key==='Enter')applyOrdF();};}
+  bindChips($('#oYear'),d.years);bindChips($('#oSt'),d.stypes);bindChips($('#oPt'),d.ptypes);bindChips($('#oBy'),d.buyers);bindChips($('#oCu'),d.currs);
+  const m=$('#oMin');if(m){m.oninput=()=>{d.minAmt=toNum(m.value)||0;markDirty();};m.onkeydown=e=>{if(e.key==='Enter')applyOrdF();};}
+  const c=$('#oCan');if(c)c.onchange=()=>{d.withCancel=c.checked;markDirty();};
+  const x=$('#oClr');if(x)x.onclick=()=>{S.od=newOrdF();applyOrdF();};
+  const a=$('#oAdv');if(a)a.ontoggle=()=>{S.oAdv=a.open;};
+}
+const kpi=(k,v,s,c)=>`<div class="box box-p"><div class="gauge-k">${k}</div><div class="gauge-v" style="${c?'color:'+c:''}"><span class="num">${v}</span></div><div class="gauge-s">${s||''}</div></div>`;
+function ordTable(head,rows,id){
+  return `<div class="tscroll"><table><thead><tr>${head.map(h=>`<th style="cursor:default" class="${h[1]||''}">${h[0]}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+/* ---------- 1. תמונת מצב למנהל ---------- */
+function ordFindings(rows,sups){
+  const tot=oSum(rows)||1,{y,py}=oYtd(),A=rows.filter(r=>inYtd(r,y)),B=rows.filter(r=>inYtd(r,py));
+  const a=oSum(A),b=oSum(B),out=[];
+  const p80=sups.findIndex(g=>g.cum>=0.8)+1;
+  out.push(`<b>ריכוזיות גבוהה:</b> ${nf0.format(p80)} ספקים (${pct(p80,sups.length)} מהספקים) מרכזים 80% מההוצאה. 10 הספקים הגדולים — ${pct(sups.slice(0,10).reduce((s,g)=>s+g.v,0),tot)}.`);
+  if(b)out.push(`<b>מגמה:</b> מתחילת ${y} ועד ${dstr(S.oMax).slice(0,5)} יצאו הזמנות ב-${short(a)}, ${a>b?'עלייה':'ירידה'} של ${Math.abs(chg(a,b)).toFixed(0)}% מול התקופה המקבילה ב-${py} (${short(b)}). מספר ההזמנות ${A.length>B.length?'עלה':'ירד'} מ-${nf0.format(B.length)} ל-${nf0.format(A.length)}.`);
+  const small=rows.filter(r=>r.ils<5000);
+  out.push(`<b>זנב ארוך:</b> ${pct(small.length,rows.length)} מההזמנות הן מתחת ל-₪5,000 ומהוות רק ${pct(oSum(small),tot)} מהכסף. ${nf0.format(sups.filter(g=>g.abc==='C').length)} ספקים (קבוצה C) מחזיקים 5% בלבד מההוצאה.`);
+  const cov=rows.filter(r=>r.cover);if(cov.length)out.push(`<b>הזמנות כיסוי:</b> ${nf0.format(cov.length)} הזמנות (${short(oSum(cov))}) סומנו כ"הזמנת כיסוי" — רכש שבוצע לפני שהוצאה הזמנה.`);
+  const cash=rows.filter(r=>r.days===0);out.push(`<b>תנאי תשלום:</b> ${pct(oSum(cash),tot)} מההוצאה (${short(oSum(cash))}) משולמת מיידית. ימי אשראי משוקללים: ${nf0.format(wDays(rows))} ימים.`);
+  const fxr=rows.filter(r=>r.curr&&r.curr!=='ILS');out.push(`<b>חשיפה למט״ח:</b> ${pct(oSum(fxr),tot)} מההוצאה במטבע זר (${[...new Set(fxr.map(r=>r.curr))].join(', ')}).`);
+  const top=sups[0];if(top)out.push(`<b>הספק הגדול:</b> ${esc(top.name)} — ${short(top.v)} (${pct(top.v,tot)}) ב-${nf0.format(top.n)} הזמנות.`);
+  const oth=rows.filter(r=>r.stype==='אחרים'||r.stype==='ללא סיווג');if(oSum(oth)/tot>0.2)out.push(`<b>איכות נתוני אב:</b> ${pct(oSum(oth),tot)} מההוצאה שייכת לספקים בסוג "אחרים" או ללא סיווג — קשה לנהל קטגוריות בלי סיווג נכון.`);
+  return out;
+}
+function wDays(rows){let a=0,b=0;rows.forEach(r=>{if(r.days!=null&&r.ils>0){a+=r.days*r.ils;b+=r.ils;}});return b?a/b:0;}
+function renderOrdExec(){
+  const p=$('#p-oexec'),rows=ordFiltered(),all=ordFiltered(true),sups=supAgg(rows),tot=oSum(rows);
+  const {y,py}=oYtd(),partial=oPartialYears();
+  const byYear=oGroup(all,r=>r.year).sort((a,b)=>a.k-b.k);
+  const ytdA=oSum(all.filter(r=>inYtd(r,y))),ytdB=oSum(all.filter(r=>inYtd(r,py)));
+  const months=oGroup(rows,r=>r.month).sort((a,b)=>a.k<b.k?-1:1).slice(-24);
+  const byType=oGroup(rows,r=>r.stype).sort((a,b)=>b.v-a.v);
+  const byPt=oGroup(rows,r=>r.ptype).sort((a,b)=>b.v-a.v);
+  const med=rows.length?rows.map(r=>r.ils).sort((a,b)=>a-b)[Math.floor(rows.length/2)]:0;
+  p.innerHTML=`<div class="sec">${ordBar()}</div>
+  <div class="sec grid3">
+    ${kpi('סך הזמנות בתצוגה',short(tot),nf0.format(rows.length)+' הזמנות · לפני מע״מ, בשקלים')}
+    ${kpi('ספקים פעילים',nf0.format(sups.length),nf0.format(sups.filter(g=>g.n===1).length)+' ספקים עם הזמנה אחת בלבד')}
+    ${kpi('הזמנה ממוצעת',short(rows.length?tot/rows.length:0),'חציון '+money(med)+' — רוב ההזמנות קטנות')}
+    ${kpi(`${y} מול ${py} (תקופה מקבילה)`,ytdB?(chg(ytdA,ytdB)>0?'+':'')+chg(ytdA,ytdB).toFixed(1)+'%':'—',short(ytdA)+' מול '+short(ytdB)+' · עד '+dstr(S.oMax).slice(0,5),ytdB?(ytdA>ytdB?'var(--red)':'var(--moss)'):'')}
+    ${kpi('ימי אשראי משוקללים',nf0.format(wDays(rows)),pct(oSum(rows.filter(r=>r.days===0)),tot)+' מההוצאה בתשלום מיידי')}
+    ${kpi('הזמנות כיסוי',short(oSum(rows.filter(r=>r.cover))),nf0.format(rows.filter(r=>r.cover).length)+' הזמנות שנפתחו אחרי מעשה','var(--amber)')}
+  </div>
+  <div class="sec"><div class="box box-p"><div class="chart-t">ממצאים עיקריים</div><div class="chart-s">נגזרים אוטומטית מהנתונים שבתצוגה</div>
+    <ul style="margin:6px 0 0;padding-inline-start:20px;line-height:1.75;font-size:13.5px">${ordFindings(rows,sups).map(x=>`<li>${x}</li>`).join('')}</ul></div></div>
+  <div class="sec grid2">
+    <div class="box box-p"><div class="chart-t">הזמנות לפי שנה</div><div class="chart-s">שנים חלקיות מסומנות בכחול${partial.size?' ('+[...partial].join(', ')+')':''} · לא מושפע מסינון השנים</div>
+      <div style="overflow-x:auto">${columns(byYear.map(g=>({k:String(g.k),lab:String(g.k)+(partial.has(g.k)?'*':''),v:g.v,c:partial.has(g.k)?'var(--sea)':'var(--brand)'})))}</div></div>
+    <div class="box box-p"><div class="chart-t">תקופה מקבילה מתחילת השנה</div><div class="chart-s">1 בינואר עד ${dstr(S.oMax).slice(0,5)} בכל שנה — השוואה הוגנת</div>
+      <div style="overflow-x:auto">${columns(byYear.map(g=>({k:String(g.k),lab:String(g.k),v:oSum(all.filter(r=>inYtd(r,g.k))),c:g.k===y?'var(--amber)':'var(--brand)'})))}</div></div>
+  </div>
+  <div class="sec"><div class="box box-p"><div class="chart-t">מגמה חודשית</div><div class="chart-s">24 החודשים האחרונים בתצוגה · חודשי ינואר בצבע שונה</div>
+    <div style="overflow-x:auto">${columns(months.map(g=>({k:g.k,lab:g.k.slice(5)+'/'+g.k.slice(2,4),v:g.v,c:g.k.slice(5)==='01'?'var(--sea)':'var(--brand)'})))}</div></div></div>
+  <div class="sec grid2">
+    <div class="box box-p"><div class="chart-t">15 הספקים הגדולים</div><div class="chart-s">חלק מסך ההוצאה בתצוגה</div>
+      ${bars(sups.slice(0,15).map(g=>({k:g.name,v:g.v,lab:short(g.v)+' · '+pct(g.v,tot),cls:'moss'})))}</div>
+    <div class="box box-p"><div class="chart-t">לפי סוג ספק</div><div class="chart-s">מכרטיס הספק ב-Priority</div>
+      <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+        ${donut(byType.slice(0,9).map((g,i)=>({k:g.k,v:g.v,c:PALETTE[i%10]})),150)}
+        <div class="legend" style="flex:1">${byType.slice(0,9).map((g,i)=>`<div><span class="sw" style="background:${PALETTE[i%10]}"></span>${esc(g.k)}<span class="lv">${short(g.v)} · ${pct(g.v,tot)}</span></div>`).join('')}</div></div>
+      <div class="chart-t" style="margin-top:16px">לפי סוג הזמנה</div>
+      ${bars(byPt.slice(0,8).map(g=>({k:g.k,v:g.v,lab:short(g.v)+' · '+nf0.format(g.n)+' הזמנות',cls:'amb'})))}</div>
+  </div>`;
+  bindOrdBar();
+}
+
+/* ---------- 2. ניתוח ספקים ---------- */
+function renderOrdSup(){
+  const p=$('#p-osup'),rows=ordFiltered(),sups=supAgg(rows),tot=oSum(rows)||1,{y,py}=oYtd();
+  const abc=['A','B','C'].map(c=>{const g=sups.filter(s=>s.abc===c);return{c,n:g.length,v:g.reduce((s,x)=>s+x.v,0),po:g.reduce((s,x)=>s+x.n,0)};});
+  const movers=sups.filter(g=>g.ya||g.yb).map(g=>({...g,d:g.ya-g.yb}));
+  const up=movers.slice().sort((a,b)=>b.d-a.d).slice(0,10),down=movers.slice().sort((a,b)=>a.d-b.d).slice(0,10);
+  const newS=sups.filter(g=>g.first>=y+'-01-01'),lost=sups.filter(g=>g.yb>0&&!g.ya);
+  p.innerHTML=`<div class="sec">${ordBar()}</div>
+  <div class="sec grid3">
+    ${abc.map(x=>kpi('קבוצה '+x.c+(x.c==='A'?' — 80% מההוצאה':x.c==='B'?' — 15% הבאים':' — 5% האחרונים'),nf0.format(x.n)+' ספקים',
+      short(x.v)+' · '+nf0.format(x.po)+' הזמנות ('+pct(x.po,rows.length)+' מההזמנות)',x.c==='C'?'var(--amber)':'')).join('')}
+    ${kpi('ספקים חדשים ב-'+y,nf0.format(newS.length),short(newS.reduce((s,g)=>s+g.v,0))+' · הזמנה ראשונה השנה')}
+    ${kpi('ספקים שלא הוזמנו השנה',nf0.format(lost.length),'הוזמנו ב-'+py+' בתקופה המקבילה ('+short(lost.reduce((s,g)=>s+g.yb,0))+')')}
+    ${kpi('ספקים עם 3+ קניינים',nf0.format(sups.filter(g=>g.buyers.size>=3).length),'אין בעלות ברורה על הספק')}
+  </div>
+  <div class="sec grid2">
+    <div class="box box-p"><div class="chart-t">הגדילו את ההוצאה — ${y} מול ${py}</div><div class="chart-s">תקופה מקבילה מתחילת השנה</div>
+      ${bars(up.filter(g=>g.d>0).map(g=>({k:g.name,v:g.d,lab:'+'+short(g.d)+' ('+short(g.yb)+' ← '+short(g.ya)+')',cls:'red'})))}</div>
+    <div class="box box-p"><div class="chart-t">הקטינו את ההוצאה — ${y} מול ${py}</div><div class="chart-s">תקופה מקבילה מתחילת השנה</div>
+      ${bars(down.filter(g=>g.d<0).map(g=>({k:g.name,v:-g.d,lab:'−'+short(-g.d)+' ('+short(g.yb)+' ← '+short(g.ya)+')',cls:'moss'})))}</div>
+  </div>
+  <div class="sec"><div class="sec-h"><h2>כל הספקים (${nf0.format(sups.length)})</h2><p>ממוין לפי הוצאה · ABC לפי פארטו</p>
+    <button class="btn btn-sm" id="xOsup">ייצוא לאקסל</button></div>
+    ${ordTable([['ספק'],['סוג'],['ABC'],['הזמנות','ta-e'],['הוצאה','ta-e'],['%','ta-e'],['מצטבר','ta-e'],['ממוצע להזמנה','ta-e'],[y+' מול '+py,'ta-e'],['קניין עיקרי'],['תנאי תשלום'],['פעילות']],
+      sups.slice(0,S.limit).map(g=>`<tr><td>${esc(g.name)}<span class="sub">${esc(g.k)}</span></td><td>${esc(g.type)}</td>
+        <td><span class="tag ${g.abc==='A'?'t-moss':g.abc==='B'?'t-sea':'t-mute'}">${g.abc}</span></td>
+        <td class="ta-e num">${nf0.format(g.n)}</td><td class="ta-e num">${money(g.v)}</td><td class="ta-e num">${(g.share*100).toFixed(2)}%</td>
+        <td class="ta-e num" style="color:var(--steel)">${(g.cum*100).toFixed(1)}%</td><td class="ta-e num">${money(g.v/g.n)}</td>
+        <td class="ta-e">${g.ya||g.yb?chgTag(g.ya,g.yb):'—'}</td><td>${esc(g.mainBuyer)}${g.buyers.size>1?`<span class="sub">+${g.buyers.size-1} נוספים</span>`:''}</td>
+        <td style="font-size:12px">${esc(g.mainPay)}<span class="sub">${esc(g.mainCurr)}</span></td><td style="font-size:12px">${dstr(g.first)}<span class="sub">עד ${dstr(g.last)}</span></td></tr>`).join(''))}
+    ${sups.length>S.limit?`<div class="more"><button class="btn" id="osMore">הצגת 150 נוספים</button></div>`:''}</div>`;
+  bindOrdBar();
+  const m=$('#osMore');if(m)m.onclick=()=>{S.limit+=150;render();};
+  $('#xOsup').onclick=()=>exportAoa([['מס׳ ספק','ספק','סוג ספק','ABC','הזמנות','הוצאה ₪','% מהסך','% מצטבר','ממוצע להזמנה','הוצאה '+y+' (YTD)','הוצאה '+py+' (YTD)','קניין עיקרי','מס׳ קניינים','תנאי תשלום עיקרי','מטבע עיקרי','הזמנה ראשונה','הזמנה אחרונה','הזמנות מתחת ל-5,000']]
+    .concat(sups.map(g=>[g.k,g.name,g.type,g.abc,g.n,Math.round(g.v),+(g.share*100).toFixed(2),+(g.cum*100).toFixed(1),Math.round(g.v/g.n),Math.round(g.ya),Math.round(g.yb),g.mainBuyer,g.buyers.size,g.mainPay,g.mainCurr,dstr(g.first),dstr(g.last),g.small])),'ניתוח ספקים');
+}
+
+/* ---------- 3. פילוחים ודוח צולב ---------- */
+function renderOrdSeg(){
+  const p=$('#p-oseg'),rows=ordFiltered(),tot=oSum(rows)||1,dim=S.oDim||'stype',yrs=[...new Set(rows.map(r=>r.year))].filter(Boolean).sort();
+  const gs=oGroup(rows,r=>r[dim]||'—').sort((a,b)=>b.v-a.v);
+  const mini=(k,t,n)=>{const g=oGroup(rows,r=>r[k]||'—').sort((a,b)=>b.v-a.v).slice(0,n||8);
+    return `<div class="box box-p"><div class="chart-t">${t}</div><div class="chart-s">${nf0.format(oGroup(rows,r=>r[k]||'—').length)} ערכים</div>
+      ${bars(g.map(x=>({k:x.k,v:x.v,lab:short(x.v)+' · '+pct(x.v,tot)})))}</div>`;};
+  p.innerHTML=`<div class="sec">${ordBar()}</div>
+  <div class="sec"><div class="sec-h"><h2>דוח צולב לפי שנה</h2><p>בחרו את הפילוח</p></div>
+    <div class="chips" id="oDim" style="max-width:none;margin-bottom:12px">${ORD_DIMS.map(([k,t])=>`<button class="chip" data-v="${k}" aria-pressed="${k===dim}">${t}</button>`).join('')}</div>
+    ${ordTable([[ORD_LABEL[dim]],['הזמנות','ta-e']].concat(yrs.map(y=>[String(y),'ta-e']),[['סה״כ','ta-e'],['%','ta-e'],['ממוצע להזמנה','ta-e']]),
+      gs.slice(0,60).map(g=>`<tr><td>${esc(g.k)}</td><td class="ta-e num">${nf0.format(g.n)}</td>
+        ${yrs.map(y=>{const v=g.rows.reduce((s,r)=>s+(r.year===y?r.ils:0),0);return `<td class="ta-e num" style="${v?'':'color:var(--faint)'}">${v?short(v):'—'}</td>`;}).join('')}
+        <td class="ta-e num"><b style="font-weight:500">${short(g.v)}</b></td><td class="ta-e num">${pct(g.v,tot)}</td><td class="ta-e num">${money(g.v/g.n)}</td></tr>`).join(''))}
+    <div style="margin-top:8px"><button class="btn btn-sm" id="xOseg">ייצוא לאקסל</button></div></div>
+  <div class="sec grid3">
+    ${mini('stype','לפי סוג ספק')}${mini('ptype','לפי סוג הזמנה')}${mini('buyer','לפי קניין מטפל')}
+    ${mini('req','לפי מזמין (עבור משתמש)')}${mini('payDesc','לפי תנאי תשלום')}${mini('curr','לפי מטבע',6)}
+    ${mini('proj','לפי פרויקט')}${mini('country','יבוא — לפי מדינת מוצא')}${mini('inco','יבוא — לפי Incoterms',7)}
+  </div>`;
+  bindOrdBar();
+  $('#oDim').onclick=e=>{const b=e.target.closest('.chip');if(!b)return;S.oDim=b.dataset.v;render();};
+  $('#xOseg').onclick=()=>exportAoa([[ORD_LABEL[dim],'הזמנות'].concat(yrs.map(String),['סה״כ ₪','%'])]
+    .concat(gs.map(g=>[g.k,g.n].concat(yrs.map(y=>Math.round(g.rows.reduce((s,r)=>s+(r.year===y?r.ils:0),0))),[Math.round(g.v),+(g.v/tot*100).toFixed(2)]))),'פילוח '+ORD_LABEL[dim]);
+}
+
+/* ---------- 4. תנאי תשלום ומט"ח ---------- */
+function renderOrdPay(){
+  const p=$('#p-opay'),rows=ordFiltered(),tot=oSum(rows)||1,yrs=[...new Set(rows.map(r=>r.year))].filter(Boolean).sort();
+  const rate=S.oRate!=null?S.oRate:5;
+  const last12=rows.filter(r=>r.date>isoMinus(S.oMax,365));
+  const cashS=supAgg(rows.filter(r=>r.days===0)).slice(0,15);
+  const cashY=oSum(last12.filter(r=>r.days===0));
+  const val30=cashY*30/365*rate/100;
+  const bands=[['מיידי',r=>r.days===0],['1–30',r=>r.days>0&&r.days<=30],['31–60',r=>r.days>30&&r.days<=60],['61–90',r=>r.days>60&&r.days<=90],['91+',r=>r.days>90],['לא ידוע',r=>r.days==null]];
+  const sups=supAgg(rows),multi=sups.filter(g=>g.pays.size>1&&g.v>100000);
+  const fxRows=rows.filter(r=>r.curr&&r.curr!=='ILS');
+  p.innerHTML=`<div class="sec">${ordBar()}</div>
+  <div class="sec grid3">
+    ${kpi('ימי אשראי משוקללים',nf0.format(wDays(rows))+' ימים','לפי שווי ההזמנות · שוטף+X נספר כ-X+15')}
+    ${kpi('תשלום מיידי',pct(oSum(rows.filter(r=>r.days===0)),tot),short(oSum(rows.filter(r=>r.days===0)))+' · '+nf0.format(rows.filter(r=>r.days===0).length)+' הזמנות','var(--amber)')}
+    ${kpi('ערך של +30 יום על התשלום המיידי',short(val30),'בשנה, לפי 12 החודשים האחרונים ועלות כסף של '+rate+'%')}
+    ${kpi('חשיפה למט״ח',pct(oSum(fxRows),tot),short(oSum(fxRows))+' · '+Object.entries(S.oFx||{}).map(([k,v])=>k+' '+v.toFixed(2)).join(' · '))}
+  </div>
+  <div class="sec grid2">
+    <div class="box box-p"><div class="chart-t">ימי אשראי משוקללים לפי שנה</div><div class="chart-s">ירידה = הספקים מקבלים כסף מהר יותר</div>
+      <div style="overflow-x:auto">${columns(yrs.map(y=>{const d=wDays(rows.filter(r=>r.year===y));return{k:String(y),lab:String(y),v:d,vlab:nf0.format(d)+' ימים',c:'var(--sea)'};}))}</div></div>
+    <div class="box box-p"><div class="chart-t">התפלגות ההוצאה לפי ימי אשראי</div><div class="chart-s">שווי ההזמנות בכל טווח</div>
+      ${bars(bands.map(([k,f])=>{const a=rows.filter(f);return{k,v:oSum(a),lab:short(oSum(a))+' · '+pct(oSum(a),tot)+' · '+nf0.format(a.length)+' הזמנות',cls:k==='מיידי'?'amb':''};}))}</div>
+  </div>
+  <div class="sec grid2">
+    <div class="box box-p"><div class="chart-t">מטבע לפי שנה</div><div class="chart-s">שיעור ההוצאה במט״ח</div>
+      ${bars(yrs.map(y=>{const a=rows.filter(r=>r.year===y),f=a.filter(r=>r.curr&&r.curr!=='ILS');return{k:String(y),v:oSum(f)/(oSum(a)||1)*100,lab:pct(oSum(f),oSum(a))+' · '+short(oSum(f)),cls:'amb'};}))}
+      <div class="note">${rows.some(r=>r.fxEst)?nf0.format(rows.filter(r=>r.fxEst).length)+' הזמנות במט״ח ללא המרה בדוח הומרו לפי השער הממוצע של שאר ההזמנות.':''}</div></div>
+    <div class="box box-p"><div class="chart-t">עלות הכסף לחישוב</div><div class="chart-s">משמשת להערכת הערך של הארכת ימי אשראי</div>
+      <label class="flab" for="oRate">ריבית שנתית (%)</label><input type="text" id="oRate" inputmode="decimal" value="${rate}" style="max-width:120px">
+      <button class="btn btn-sm" id="oRateOk" style="margin-inline-start:6px">חישוב</button>
+      <div class="note">הנוסחה: הוצאה שנתית בתשלום מיידי × 30/365 × ריבית. זו הערכה לשווי ההון החוזר, לא חיסכון מחיר.</div></div>
+  </div>
+  <div class="sec"><div class="sec-h"><h2>ספקים בתשלום מיידי (${nf0.format(supAgg(rows.filter(r=>r.days===0)).length)})</h2><p>מועמדים למו״מ על תנאי תשלום</p></div>
+    ${ordTable([['ספק'],['סוג'],['הזמנות','ta-e'],['הוצאה בתשלום מיידי','ta-e'],['% מההוצאה','ta-e'],['ערך של +30 יום בשנה','ta-e']],
+      cashS.map(g=>{const y12=oSum(g.rows.filter(r=>r.date>isoMinus(S.oMax,365)));return `<tr><td>${esc(g.name)}</td><td>${esc(g.type)}</td><td class="ta-e num">${nf0.format(g.n)}</td>
+        <td class="ta-e num">${money(g.v)}</td><td class="ta-e num">${pct(g.v,tot)}</td><td class="ta-e num">${money(y12*30/365*rate/100)}</td></tr>`;}).join(''))}</div>
+  <div class="sec"><div class="sec-h"><h2>ספקים עם תנאי תשלום לא אחידים (${nf0.format(multi.length)})</h2><p>אותו ספק קיבל תנאים שונים בהזמנות שונות · ספקים מעל ₪100K</p></div>
+    ${ordTable([['ספק'],['הוצאה','ta-e'],['תנאים שונים','ta-e'],['פירוט']],
+      multi.slice(0,25).map(g=>`<tr><td>${esc(g.name)}</td><td class="ta-e num">${money(g.v)}</td><td class="ta-e num">${g.pays.size}</td>
+        <td style="font-size:12px">${[...g.pays.entries()].sort((a,b)=>b[1]-a[1]).map(([k,v])=>esc(k)+' ('+short(v)+')').join(' · ')}</td></tr>`).join(''))}</div>`;
+  bindOrdBar();
+  $('#oRateOk').onclick=()=>{const v=toNum($('#oRate').value);if(v!=null){S.oRate=v;render();}};
+}
+function isoMinus(iso,days){if(!iso)return '0000';const d=new Date(iso+'T00:00:00Z');d.setUTCDate(d.getUTCDate()-days);return d.toISOString().slice(0,10);}
+
+/* ---------- 5. בקרה ותהליך ---------- */
+function ordControls(rows){
+  const cover=rows.filter(r=>r.cover&&!r.cancel);
+  const bySD=new Map();rows.filter(r=>!r.cancel).forEach(r=>{const k=r.sk+'|'+r.date;let a=bySD.get(k);if(!a){a=[];bySD.set(k,a);}a.push(r);});
+  const split=[...bySD.values()].filter(a=>a.length>=3).sort((a,b)=>oSum(b)-oSum(a));
+  const byAmt=new Map();rows.filter(r=>!r.cancel&&r.ils>500).forEach(r=>{const k=r.sk+'|'+Math.round(r.ils);let a=byAmt.get(k);if(!a){a=[];byAmt.set(k,a);}a.push(r);});
+  const dups=[];byAmt.forEach(a=>{a.sort((x,y)=>x.date<y.date?-1:1);for(let i=1;i<a.length;i++)if((Date.parse(a[i].date)-Date.parse(a[i-1].date))/864e5<=14)dups.push([a[i-1],a[i]]);});
+  dups.sort((a,b)=>b[1].ils-a[1].ils);
+  return{cover,split,dups,zero:rows.filter(r=>!r.cancel&&!r.ils),cancel:rows.filter(r=>r.cancel)};
+}
+function renderOrdCtrl(){
+  const p=$('#p-octrl'),prev=S.of.withCancel;S.of.withCancel=true;S._oCache=null;const all=ordFiltered();S.of.withCancel=prev;S._oCache=null;
+  const rows=all,c=ordControls(all),tot=oSum(rows.filter(r=>!r.cancel))||1;
+  const covBuyer=oGroup(c.cover,r=>r.buyer).sort((a,b)=>b.v-a.v),covY=oGroup(c.cover,r=>r.year).sort((a,b)=>a.k-b.k);
+  const covSup=supAgg(c.cover).slice(0,10);
+  const byBuyer=oGroup(rows.filter(r=>!r.cancel),r=>r.buyer).sort((a,b)=>b.n-a.n);
+  p.innerHTML=`<div class="sec">${ordBar()}</div>
+  <div class="sec grid3">
+    ${kpi('הזמנות כיסוי',nf0.format(c.cover.length),short(oSum(c.cover))+' · '+pct(oSum(c.cover),tot)+' מההוצאה','var(--red)')}
+    ${kpi('חשד לפיצול הזמנות',nf0.format(c.split.length),'ספק+יום עם 3 הזמנות ומעלה · '+nf0.format(c.split.reduce((s,a)=>s+a.length,0))+' הזמנות','var(--amber)')}
+    ${kpi('חשד לכפילות',nf0.format(c.dups.length),'אותו ספק ואותו סכום בהפרש של עד 14 יום','var(--amber)')}
+    ${kpi('הזמנות מבוטלות',nf0.format(c.cancel.length),short(oSum(c.cancel))+' · '+pct(c.cancel.length,c.cancel.length+rows.filter(r=>!r.cancel).length)+' מההזמנות')}
+    ${kpi('הזמנות בשווי אפס',nf0.format(c.zero.length),'הזמנה ללא מחיר — לבדוק')}
+    ${kpi('הזמנות קטנות (מתחת ל-₪1,000)',pct(rows.filter(r=>!r.cancel&&r.ils<1000).length,rows.filter(r=>!r.cancel).length),nf0.format(rows.filter(r=>!r.cancel&&r.ils<1000).length)+' הזמנות · '+short(oSum(rows.filter(r=>!r.cancel&&r.ils<1000))))}
+  </div>
+  <div class="sec grid2">
+    <div class="box box-p"><div class="chart-t">הזמנות כיסוי לפי קניין</div><div class="chart-s">שווי וכמות · "הזמנת כיסוי" בהערות או בפרטים</div>
+      ${bars(covBuyer.slice(0,10).map(g=>({k:g.k,v:g.v,lab:short(g.v)+' · '+nf0.format(g.n)+' הזמנות',cls:'red'})))}
+      <div class="chart-t" style="margin-top:16px">לפי שנה</div>${bars(covY.map(g=>({k:String(g.k),v:g.v,lab:short(g.v)+' · '+nf0.format(g.n)+' הזמנות',cls:'red'})))}</div>
+    <div class="box box-p"><div class="chart-t">ספקים עם הכי הרבה הזמנות כיסוי</div><div class="chart-s">כאן העבודה מתחילה לפני ההזמנה</div>
+      ${bars(covSup.map(g=>({k:g.name,v:g.v,lab:short(g.v)+' · '+nf0.format(g.n)+' הזמנות',cls:'amb'})))}</div>
+  </div>
+  <div class="sec"><div class="sec-h"><h2>עומס ופרופיל לפי קניין</h2><p>כמה הזמנות, באיזה גודל, וכמה מהן כיסוי</p></div>
+    ${ordTable([['קניין'],['הזמנות','ta-e'],['שווי','ta-e'],['ממוצע','ta-e'],['מתחת ל-₪5,000','ta-e'],['כיסוי','ta-e'],['ספקים','ta-e']],
+      byBuyer.slice(0,25).map(g=>`<tr><td>${esc(g.k)}</td><td class="ta-e num">${nf0.format(g.n)}</td><td class="ta-e num">${short(g.v)}</td>
+        <td class="ta-e num">${money(g.v/g.n)}</td><td class="ta-e num">${pct(g.rows.filter(r=>r.ils<5000).length,g.n)}</td>
+        <td class="ta-e num">${pct(g.rows.filter(r=>r.cover).length,g.n)}</td><td class="ta-e num">${nf0.format(new Set(g.rows.map(r=>r.sk)).size)}</td></tr>`).join(''))}</div>
+  <div class="sec"><div class="sec-h"><h2>חשד לכפילות (${nf0.format(c.dups.length)})</h2><p>זוגות הזמנות לאותו ספק באותו סכום בהפרש של עד 14 יום · לבדיקה, לא בהכרח טעות</p>
+    <button class="btn btn-sm" id="xDup">ייצוא</button></div>
+    ${ordTable([['ספק'],['הזמנה א׳'],['הזמנה ב׳'],['סכום','ta-e'],['פרטים']],
+      c.dups.slice(0,30).map(([a,b])=>`<tr><td>${esc(a.sup||'')}</td><td>${esc(a.po)}<span class="sub">${dstr(a.date)} · ${esc(a.status||'')}</span></td>
+        <td>${esc(b.po)}<span class="sub">${dstr(b.date)} · ${esc(b.status||'')}</span></td><td class="ta-e num">${money(b.ils)}</td>
+        <td class="desc" style="font-size:12px">${esc((b.det||'').slice(0,60))}</td></tr>`).join(''))}</div>
+  <div class="sec"><div class="sec-h"><h2>חשד לפיצול — ספק עם 3+ הזמנות באותו יום (${nf0.format(c.split.length)})</h2><p>פיצול עוקף לעיתים דרגות אישור. ייתכן גם שמדובר בהזמנות לגיטימיות</p>
+    <button class="btn btn-sm" id="xSplit">ייצוא</button></div>
+    ${ordTable([['ספק'],['תאריך'],['הזמנות','ta-e'],['סה״כ','ta-e'],['קניינים']],
+      c.split.slice(0,30).map(a=>`<tr><td>${esc(a[0].sup||'')}</td><td>${dstr(a[0].date)}</td><td class="ta-e num">${a.length}</td>
+        <td class="ta-e num">${money(oSum(a))}</td><td style="font-size:12px">${[...new Set(a.map(r=>r.buyer))].map(esc).join(', ')}</td></tr>`).join(''))}</div>`;
+  bindOrdBar();
+  const cols=['הזמנה','תאריך','ספק','סכום ₪','סטטוס','קניין','פרטים'],row=r=>[r.po,dstr(r.date),r.sup,Math.round(r.ils),r.status,r.buyer,r.det||''];
+  $('#xDup').onclick=()=>exportAoa([cols.concat(['הזמנה תואמת','תאריך תואם'])].concat(c.dups.map(([a,b])=>row(b).concat([a.po,dstr(a.date)]))),'חשד לכפילות');
+  $('#xSplit').onclick=()=>exportAoa([cols].concat(c.split.flat().map(row)),'חשד לפיצול');
+}
+
+/* ---------- 6. המלצות ---------- */
+function ordRecs(rows){
+  const live=rows.filter(r=>!r.cancel),tot=oSum(live)||1,sups=supAgg(live),last12=live.filter(r=>r.date>isoMinus(S.oMax,365));
+  const cost=S.oPoCost!=null?S.oPoCost:150,rate=S.oRate!=null?S.oRate:5,c=ordControls(rows),out=[];
+  const R=(sev,title,finding,action,impact,list,cols)=>out.push({sev,title,finding,action,impact,list:list||[],cols});
+  const supCols=[['ספק','name'],['סוג','type'],['הזמנות','n'],['הוצאה ₪','v']];
+  /* ריכוז ספקי זנב */
+  const C=sups.filter(g=>g.abc==='C'),cPO=C.reduce((s,g)=>s+g.n,0);
+  R('sev-amb','צמצום זנב הספקים',`${nf0.format(C.length)} ספקים (${pct(C.length,sups.length)} מהספקים) מקבלים יחד 5% בלבד מהכסף, אבל צורכים ${nf0.format(cPO)} הזמנות (${pct(cPO,live.length)} מכל ההזמנות).`,
+    'לאחד ספקים לפי קטגוריה, לעבור לקטלוג/ספק מועדף לכל משפחת מוצר, ולחסום פתיחת ספק חדש ללא אישור רכש.',
+    `הורדת 30% מההזמנות בזנב חוסכת כ-${money(cPO*0.3*cost/Math.max(1,(new Set(live.map(r=>r.year)).size)))} בשנה בעלויות טיפול (לפי ₪${cost} להזמנה).`,C,supCols);
+  /* הסכמי מסגרת */
+  const fr=sups.filter(g=>{const yrs=Math.max(1,new Set(g.rows.map(r=>r.year)).size);return g.n/yrs>=25&&g.v/g.n<5000;}).sort((a,b)=>b.n-a.n);
+  R('sev-sea','הסכמי מסגרת לספקים עם הרבה הזמנות קטנות',`${nf0.format(fr.length)} ספקים מקבלים 25+ הזמנות בשנה בממוצע של פחות מ-₪5,000 להזמנה — ${nf0.format(fr.reduce((s,g)=>s+g.n,0))} הזמנות, ${short(fr.reduce((s,g)=>s+g.v,0))}.`,
+    'הזמנת מסגרת שנתית עם מחירון קבוע וקריאות (call-off) במקום הזמנה לכל צורך. מאפשר גם הנחת כמות.',
+    `ביטול 70% מההזמנות הבודדות ≈ ${money(fr.reduce((s,g)=>s+g.n,0)*0.7*cost/Math.max(1,new Set(live.map(r=>r.year)).size))} בשנה בעלויות טיפול, ועוד 2–5% הנחה על ${short(fr.reduce((s,g)=>s+g.v,0))}.`,fr,supCols);
+  /* תנאי תשלום */
+  const cashS=supAgg(last12.filter(r=>r.days===0)).filter(g=>g.v>200000),cashV=cashS.reduce((s,g)=>s+g.v,0);
+  R('sev-amb','מו״מ על תנאי תשלום לספקים בתשלום מיידי',`${nf0.format(cashS.length)} ספקים מעל ₪200K ב-12 החודשים האחרונים מקבלים תשלום מיידי — ${short(cashV)} בשנה.`,
+    'לפתוח מו״מ על שוטף+30 לפחות, במיוחד לספקים מקומיים. בחומרי גלם לבחון מכתבי אשראי או ימי דחייה במקום מזומן.',
+    `כל 30 יום נוספים שווים כ-${money(cashV*30/365*rate/100)} בשנה בהון חוזר (לפי ${rate}%).`,cashS,supCols);
+  /* הזמנות כיסוי */
+  if(c.cover.length){const cb=oGroup(c.cover,r=>r.buyer).sort((a,b)=>b.v-a.v);
+    R('sev-red','הפסקת הזמנות כיסוי',`${nf0.format(c.cover.length)} הזמנות (${short(oSum(c.cover))}) נפתחו אחרי שהשירות או הסחורה כבר הוזמנו. ${esc(cb[0].k)} לבד אחראי/ת ל-${pct(cb[0].v,oSum(c.cover))} מהשווי.`,
+      'נוהל: אין התחייבות לספק בלי הזמנה מאושרת. לספקים חוזרים (הובלות, אנרגיה, שירותים) — הזמנת מסגרת מראש. מעקב חודשי אחר שיעור הכיסוי לכל קניין.',
+      'מחזיר את כוח המיקוח לרכש (המחיר נקבע לפני העבודה) ומונע חריגות תקציב.',supAgg(c.cover),supCols);}
+  /* ריכוזיות */
+  const big=sups.filter(g=>g.share>=0.05);
+  R('sev-sea','ניהול סיכון בספקים המרכזיים',`${nf0.format(big.length)} ספקים מחזיקים כל אחד 5% ומעלה מההוצאה, ויחד ${pct(big.reduce((s,g)=>s+g.v,0),tot)}.`,
+    'לכל ספק אסטרטגי: חוזה שנתי, ספק חלופי מאושר, מעקב מחירים מול מדד (למשל מחירי תירס/סוכר בבורסה), והערכת ספק רבעונית.',
+    'הפחתת סיכון אספקה ושיפור כוח מיקוח בחידוש החוזים.',big,supCols);
+  /* מט"ח */
+  const fx=last12.filter(r=>r.curr&&r.curr!=='ILS');
+  if(fx.length)R('sev-sea','מדיניות גידור מט״ח',`${short(oSum(fx))} (${pct(oSum(fx),oSum(last12))}) מההזמנות ב-12 החודשים האחרונים במטבע זר.`,
+    'לתאם עם הכספים גידור לפי לוח ההגעות של הזמנות הדולר הגדולות, ולשקול הצמדה חלקית בחוזי חומרי גלם.',
+    `כל 1% בשער הדולר/יורו = כ-${money(oSum(fx)/100)} בשנה.`,supAgg(fx),supCols);
+  /* בעלות על ספק */
+  const own=sups.filter(g=>g.buyers.size>=3&&g.v>50000).sort((a,b)=>b.v-a.v);
+  R('sev-sea','קניין אחראי לכל ספק',`${nf0.format(own.length)} ספקים מעל ₪50K מטופלים על ידי 3 קניינים ומעלה.`,
+    'להגדיר קניין קטגוריה אחד לכל ספק — מחיר אחיד, מו״מ אחד, ויחס עבודה ברור.','מונע מחירים שונים לאותו ספק ומחזק את כוח המיקוח.',own,supCols);
+  /* סיווג ספקים */
+  const oth=sups.filter(g=>g.type==='אחרים'||g.type==='ללא סיווג');
+  if(oSum(live.filter(r=>r.stype==='אחרים'||r.stype==='ללא סיווג'))/tot>0.1)
+    R('sev-amb','סיווג ספקים בנתוני האב',`${pct(oSum(live.filter(r=>r.stype==='אחרים'||r.stype==='ללא סיווג')),tot)} מההוצאה שייכת ל-${nf0.format(oth.length)} ספקים בסוג "אחרים" או ללא סיווג.`,
+      'לסווג מחדש את הספקים בכרטיס הספק (חומרי גלם, אנרגיה, שירותים וכו׳) כדי שניתוח הקטגוריות יהיה אמין.','בסיס לניהול קטגוריות ולתקציב רכש.',oth,supCols);
+  /* כפילויות ופיצול */
+  if(c.dups.length||c.split.length)R('sev-amb','בדיקת כפילויות ופיצולים',`${nf0.format(c.dups.length)} זוגות הזמנות חשודים בכפילות ו-${nf0.format(c.split.length)} מקרים של 3+ הזמנות לאותו ספק באותו יום.`,
+    'לבדוק את הרשימות בלשונית "בקרה ותהליך", ולהוסיף ב-Priority התראה על הזמנה זהה לספק בתוך 14 יום.','מניעת תשלום כפול ועקיפת דרגות אישור.',[]);
+  return out;
+}
+function renderOrdRec(){
+  const p=$('#p-orec'),recs=ordRecs(ordFiltered());
+  const cost=S.oPoCost!=null?S.oPoCost:150,rate=S.oRate!=null?S.oRate:5;
+  p.innerHTML=`<div class="sec">${ordBar()}</div>
+  <div class="sec"><div class="box box-p" style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end">
+    <div><label class="flab" for="oCost">עלות טיפול בהזמנה (₪)</label><input type="text" id="oCost" inputmode="numeric" value="${cost}" style="max-width:120px"></div>
+    <div><label class="flab" for="oRate2">עלות כסף שנתית (%)</label><input type="text" id="oRate2" inputmode="decimal" value="${rate}" style="max-width:120px"></div>
+    <button class="btn btn-sm btn-solid" id="oAsm">עדכון הנחות</button>
+    <div class="note" style="flex:1 1 260px;margin:0">ההערכות הכספיות מבוססות על שתי ההנחות האלה. עדכנו אותן לפי הנתונים של גלעם.</div></div></div>
+  <div class="sec"><div class="sec-h"><h2>המלצות לפעולה (${recs.length})</h2><p>מסודר לפי חומרה · כל המלצה עם הרשימה המלאה לייצוא</p></div>
+  ${recs.map((x,i)=>`<div class="rec ${x.sev}"><div class="rec-h"><h3>${x.title}</h3>
+      ${x.list.length?`<span class="cnt">${nf0.format(x.list.length)} ספקים</span><button class="btn btn-sm" data-xo="${i}">ייצוא</button>`:''}</div>
+    <div class="box-p" style="font-size:13.5px;line-height:1.7">
+      <div><b style="font-weight:500">ממצא:</b> ${x.finding}</div>
+      <div><b style="font-weight:500">פעולה מומלצת:</b> ${x.action}</div>
+      <div style="color:var(--moss)"><b style="font-weight:500">השפעה משוערת:</b> ${x.impact}</div>
+      ${x.list.length?`<div class="note">מובילים: ${x.list.slice(0,5).map(g=>esc(g.name)+' ('+short(g.v)+')').join(' · ')}</div>`:''}</div></div>`).join('')}</div>`;
+  bindOrdBar();
+  $('#oAsm').onclick=()=>{const a=toNum($('#oCost').value),b=toNum($('#oRate2').value);if(a!=null)S.oPoCost=a;if(b!=null)S.oRate=b;render();};
+  p.querySelectorAll('[data-xo]').forEach(b=>b.onclick=()=>{const x=recs[+b.dataset.xo];
+    exportAoa([['ספק','סוג ספק','הזמנות','הוצאה ₪','ABC','קניין עיקרי','תנאי תשלום עיקרי']].concat(x.list.map(g=>[g.name,g.type,g.n,Math.round(g.v),g.abc,g.mainBuyer,g.mainPay])),x.title.slice(0,40));});
+}
+
+/* ---------- 7. טעינה ---------- */
+function renderOrdLoad(){
+  $('#p-oload').innerHTML=`<div class="sec"><div class="sec-h"><h2>טעינת דוח הזמנות רכש שיצאו לספקים</h2>
+    <p>דוח כותרות הזמנות רכש מ-Priority — שורה לכל הזמנה, עם ספק, תאריך, סכום ותנאים. נשמר במסד הנתונים ומשותף לכל המשתמשים.</p></div>
+    <div class="drop" id="odrop">גררו לכאן את הדוח, או <button class="btn btn-sm" id="opick" style="margin:0 4px">בחרו קובץ</button></div>
+    <div class="note">דוח נוכחי: <b>${S.ord.length?esc(S.ordLabel):'לא נטען'}</b>${S.ord.length?' · '+nf0.format(S.ord.length)+' הזמנות · '+dstr(S.ord.reduce((m,r)=>!m||r.date<m?r.date:m,''))+' עד '+dstr(S.oMax):''}${S.ordBusy?' · <b>'+esc(S.ordBusy)+'</b>':''}</div></div>
+    <div class="sec"><div class="sec-h"><h2>איך הסכומים מחושבים</h2></div><div class="box box-p" style="font-size:13.5px;line-height:1.8">
+      הסכום הוא <b>"סה״כ במטבע ראשי"</b> — בשקלים, לפני מע״מ. הזמנות במט״ח שלא הומרו בדוח מומרות לפי השער הממוצע של שאר ההזמנות באותו מטבע.<br>
+      הזמנות <b>מבוטלות</b> לא נספרות (אפשר לכלול אותן בסינון). <b>הזמנת כיסוי</b> מזוהה לפי המילה "כיסוי" בהערות או בפרטים.<br>
+      <b>ימי אשראי:</b> שוטף+X נספר כ-X+15, תאריך חשבונית+X כ-X, מיידי כ-0.</div></div>
+    <div class="sec"><div class="sec-h"><h2>עמודות שמזוהות</h2></div>
+      ${ordTable([['שדה'],['כותרת בדוח']],ORD_KEYS.map(k=>`<tr><td>${esc(ORD_LABEL[k]||k)}</td><td style="color:var(--steel);font-size:12.5px">${esc(ORD_ALIAS[k].join(' · '))}</td></tr>`).join(''))}</div>`;
+  const d=$('#odrop');
+  $('#opick').onclick=()=>$('#ofile').click();
+  ['dragenter','dragover'].forEach(ev=>d.addEventListener(ev,e=>{e.preventDefault();d.classList.add('hot');}));
+  ['dragleave','drop'].forEach(ev=>d.addEventListener(ev,e=>{e.preventDefault();d.classList.remove('hot');}));
+  d.addEventListener('drop',e=>{e.stopPropagation();if(e.dataTransfer.files[0])readOrdFile(e.dataTransfer.files[0]);});
+}
+function readOrdFile(file){
+  toast('קורא את דוח ההזמנות…');
+  const fr=new FileReader();
+  fr.onerror=()=>toast('לא ניתן לקרוא את הקובץ');
+  fr.onload=e=>{
+    try{
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',cellDates:true});
+      const aoa=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:null,blankrows:false});
+      if(!aoa.length)throw new Error('הגיליון ריק');
+      let hi=0,best=-1;
+      for(let i=0;i<Math.min(10,aoa.length);i++){const n=Object.keys(mapHeadersWith(aoa[i],ORD_ALIAS)).length;if(n>best){best=n;hi=i;}}
+      const hn=aoa[hi].map(h=>norm(h)),map={};
+      ORD_KEYS.forEach(k=>{for(const a of ORD_ALIAS[k]){const i=hn.indexOf(norm(a));if(i>-1){map[k]=i;break;}}});
+      /* בדוח יש שתי עמודות "תנאי תשלום": הראשונה קוד, השנייה תיאור */
+      const pi=hn.map((h,i)=>h===norm('תנאיתשלום')?i:-1).filter(i=>i>-1);
+      if(pi.length>1){map.payCode=pi[0];map.payDesc=pi[1];}else if(pi.length===1){map.payCode=pi[0];delete map.payDesc;}
+      const miss=['po','date','sup','ils'].filter(k=>map[k]===undefined);
+      if(miss.length)throw new Error('חסרות עמודות: '+miss.join(', ')+'. ודאו שזהו דוח הזמנות רכש מ-Priority.');
+      const out=[];
+      for(let i=hi+1;i<aoa.length;i++){
+        const a=aoa[i];if(!a)continue;const o={};
+        for(const k in map){const v=a[map[k]];o[k]=k==='date'?toDate(v):ORD_NUM.indexOf(k)>-1?toNum(v):clean(v);}
+        if(!o.po||!o.date)continue;out.push(o);
+      }
+      if(!out.length)throw new Error('לא נמצאו הזמנות');
+      S.ord=deriveOrd(out);S.ordLabel=file.name.replace(/\.(xlsx|xls|csv)$/i,'');S._oCache=null;
+      S.od=newOrdF();S.of=newOrdF();S.limit=150;S.mode='ord';S.tab='oexec';
+      toast('נטענו '+nf0.format(out.length)+' הזמנות · '+short(oSum(S.ord.filter(r=>!r.cancel))),5000);
+      render();
+      S.ordBusy='שומר במסד הנתונים…';
+      packRows(S.ord,ORD_KEYS).then(z=>{store('orddata',{z,label:S.ordLabel,n:S.ord.length});S.ordBusy='';})
+        .catch(()=>{S.ordBusy='';toast('הדוח נטען אך לא נשמר');});
+    }catch(err){toast('שגיאה: '+(err.message||'הקובץ לא נקרא'),6000);}
+  };
+  fr.readAsArrayBuffer(file);
+}
+function renderOrdMeta(){
+  if(!S.ord.length){
+    $('#meta').innerHTML=S.ordBusy?esc(S.ordBusy):'דוח ההזמנות טרם נטען · גררו אותו ללשונית הטעינה';
+    $('#strip').innerHTML=`<div class="gauge" style="flex-basis:100%"><div class="gauge-k">מצב המערכת</div>
+      <div class="gauge-v" style="font-size:22px">${S.ordBusy?esc(S.ordBusy):'ממתין לטעינת דוח הזמנות רכש'}</div>
+      <div class="gauge-s">דוח כותרות הזמנות מ-Priority</div></div>`;
+    return;
+  }
+  const rows=ordFiltered(),tot=oSum(rows),{y,py}=oYtd(),all=ordFiltered(true),a=oSum(all.filter(r=>inYtd(r,y))),b=oSum(all.filter(r=>inYtd(r,py)));
+  $('#meta').innerHTML=`דוח הזמנות: <b>${esc(S.ordLabel)}</b><br>${nf0.format(S.ord.length)} הזמנות · נכון ל-${dstr(S.oMax)}`;
+  $('#strip').innerHTML=[
+    {k:'הזמנות בתצוגה',v:short(tot),s:nf0.format(rows.length)+' הזמנות · לפני מע״מ'},
+    {k:'ספקים',v:nf0.format(new Set(rows.map(r=>r.sk)).size),s:'ממוצע '+short(rows.length?tot/rows.length:0)+' להזמנה'},
+    {k:y+' מתחילת השנה',v:short(a),s:nf0.format(all.filter(r=>inYtd(r,y)).length)+' הזמנות'},
+    {k:'מול '+py+' (תקופה מקבילה)',v:b?(a>b?'+':'')+chg(a,b).toFixed(1)+'%':'—',s:b?(a>=b?'+':'−')+short(Math.abs(a-b)):'',c:b?(a>b?'alarm':''):''},
+    {k:'הזמנות כיסוי',v:short(oSum(rows.filter(r=>r.cover))),s:nf0.format(rows.filter(r=>r.cover).length)+' הזמנות',c:'warn'}
+  ].map(x=>`<div class="gauge ${x.c||''}"><div class="gauge-k">${x.k}</div><div class="gauge-v"><span class="num">${x.v}</span></div><div class="gauge-s"><span class="num">${x.s}</span></div></div>`).join('');
+}
+
 /* ---------- tabs & shell ---------- */
 const TABS=[
   {id:'track',m:'po',t:'מעקב ובקרה',r:renderTrack,n:()=>filtered().length},
@@ -2511,7 +3037,14 @@ const TABS=[
   {id:'isup',m:'item',t:'ספקים',r:renderItemSup},
   {id:'icat',m:'item',t:'קטלוג פריטים',r:renderItemCatalog},
   {id:'iins',m:'item',t:'תובנות והמלצות',r:renderItemInsights,n:()=>itemRecs(itemFiltered()).length},
-  {id:'iload',m:'item',t:'טעינת קובץ פריטים',r:renderItemLoad}
+  {id:'iload',m:'item',t:'טעינת קובץ פריטים',r:renderItemLoad},
+  {id:'oexec',m:'ord',t:'תמונת מצב',r:renderOrdExec,n:()=>ordFiltered().length},
+  {id:'osup',m:'ord',t:'ניתוח ספקים',r:renderOrdSup},
+  {id:'oseg',m:'ord',t:'פילוחים',r:renderOrdSeg},
+  {id:'opay',m:'ord',t:'תנאי תשלום ומט״ח',r:renderOrdPay},
+  {id:'octrl',m:'ord',t:'בקרה ותהליך',r:renderOrdCtrl},
+  {id:'orec',m:'ord',t:'המלצות',r:renderOrdRec,n:()=>ordRecs(ordFiltered()).length},
+  {id:'oload',m:'ord',t:'טעינת דוח הזמנות',r:renderOrdLoad}
 ];
 const modeTabs=()=>TABS.filter(t=>t.m===S.mode);
 function renderRail(){
@@ -2526,6 +3059,7 @@ function bindRefresh(){
       if(S.mode==='sup'){applySupFilters();toast('תצוגת הספקים רועננה');}
       else if(S.mode==='spend'){applySpendFilters();toast('תצוגת הספנד רועננה');}
       else if(S.mode==='item'){applyItemFilters();toast('תצוגת הפריטים רועננה');}
+      else if(S.mode==='ord'){applyOrdF();toast('תצוגת ההזמנות רועננה');}
       else{applyFilters();toast(S.f.buyers.size?'הוצג מחדש עבור '+S.f.buyers.size+' קניינים':'התצוגה רועננה');}
     };
   });
@@ -2536,10 +3070,13 @@ function render(){
   if(S.mode==='sup'&&!S.sup.length)S.tab='sload';
   if(S.mode==='spend'&&!S.spend.length)S.tab='pload';
   if(S.mode==='item'&&!S.items.length)S.tab='iload';
+  if(S.mode==='ord'&&!S.ord.length)S.tab='oload';
   if(S.items.length&&(S._lnkS!==S.spend||S._lnkR!==S.rows)){S._lnkS=S.spend;S._lnkR=S.rows;refreshItemLinks();}
   renderMeta();renderRail();
-  $('#btnLoad').textContent=S.mode==='sup'?'טעינת קובץ ספקים':S.mode==='spend'?'טעינת דוח ספנד':S.mode==='item'?'טעינת קובץ פריטים':'טעינת דוח הזמנות';
-  $('#footMeta').textContent=S.mode==='item'
+  $('#btnLoad').textContent=S.mode==='sup'?'טעינת קובץ ספקים':S.mode==='spend'?'טעינת דוח ספנד':S.mode==='item'?'טעינת קובץ פריטים':S.mode==='ord'?'טעינת דוח הזמנות לספקים':'טעינת דוח הזמנות';
+  $('#footMeta').textContent=S.mode==='ord'
+    ? (S.ord.length?S.ordLabel+' · '+nf0.format(S.ord.length)+' הזמנות':'דוח הזמנות לספקים טרם נטען')+' · '+dstr(todayISO())
+    : S.mode==='item'
     ? (S.items.length?S.itemLabel+' · '+nf0.format(S.items.length)+' פריטים':'קובץ פריטים טרם נטען')+' · '+dstr(todayISO())
     : S.mode==='sup'
     ? S.supLabel+' · '+nf0.format(S.sup.length)+' ספקים · עודכן '+dstr(todayISO())
@@ -2558,6 +3095,11 @@ S.supLabel=seedSup.source;
 S.sf=newSupFilters();S.sd=newSupFilters();
 S.pf=newSpendFilters();S.pd=newSpendFilters();
 S.itf=newItemFilters();S.itd=newItemFilters();
+S.of=newOrdF();S.od=newOrdF();
+const savedOrd=store('orddata');
+if(savedOrd&&savedOrd.z){S.ordBusy='טוען את דוח ההזמנות…';
+  unpackRows(savedOrd.z).then(rows=>{S.ord=deriveOrd(rows);S.ordLabel=savedOrd.label;S._oCache=null;})
+    .catch(()=>toast('לא ניתן לפתוח את דוח ההזמנות השמור')).then(()=>{S.ordBusy='';if(S.mode==='ord')render();});}
 const savedItems=store('itemdata');
 if(savedItems&&savedItems.z){S.itemBusy='טוען את קובץ הפריטים…';
   unpackItems(savedItems.z).then(rows=>{S.items=deriveItems(rows);S.itemLabel=savedItems.label;S._lnkS=S.spend;S._lnkR=S.rows;})
@@ -2569,7 +3111,8 @@ if(savedSup&&savedSup.rows&&savedSup.rows.length){S.sup=deriveSup(savedSup.rows)
 
 $('#modes').onclick=e=>{const b=e.target.closest('.mode');if(!b)return;
   S.mode=b.dataset.m;S.tab=modeTabs()[0].id;S.limit=150;render();window.scrollTo({top:0,behavior:'smooth'});};
-$('#btnLoad').onclick=()=>$(S.mode==='sup'?'#sfile':S.mode==='spend'?'#pfile':S.mode==='item'?'#ifile':'#file').click();
+$('#btnLoad').onclick=()=>$(S.mode==='sup'?'#sfile':S.mode==='spend'?'#pfile':S.mode==='item'?'#ifile':S.mode==='ord'?'#ofile':'#file').click();
+$('#ofile').onchange=e=>{if(e.target.files[0])readOrdFile(e.target.files[0]);e.target.value='';};
 $('#ifile').onchange=e=>{if(e.target.files[0])readItemFile(e.target.files[0]);e.target.value='';};
 $('#file').onchange=e=>{if(e.target.files[0])readFile(e.target.files[0]);e.target.value='';};
 $('#sfile').onchange=e=>{if(e.target.files[0])readSupFile(e.target.files[0]);e.target.value='';};
@@ -2588,7 +3131,7 @@ $('#btnTheme').onclick=()=>{
 };
 ['dragover','drop'].forEach(ev=>document.addEventListener(ev,e=>{
   if(e.dataTransfer&&[...e.dataTransfer.types].indexOf('Files')>-1){e.preventDefault();
-    if(ev==='drop'&&e.dataTransfer.files[0])(S.mode==='sup'?readSupFile:S.mode==='spend'?readSpendFile:S.mode==='item'?readItemFile:readFile)(e.dataTransfer.files[0]);}
+    if(ev==='drop'&&e.dataTransfer.files[0])(S.mode==='sup'?readSupFile:S.mode==='spend'?readSpendFile:S.mode==='item'?readItemFile:S.mode==='ord'?readOrdFile:readFile)(e.dataTransfer.files[0]);}
 }));
 
 render();
@@ -2600,7 +3143,7 @@ render();
    כל שמירה נשלחת גם לשרת. בלי שרת (קובץ מקומי) — עובד מהדפדפן בלבד. */
 (function(){
 "use strict";
-const API='/api/store', SYNC=['data','supdata','spenddata','supmeta','crit','ok','itemdata'];
+const API='/api/store', SYNC=['data','supdata','spenddata','supmeta','crit','ok','itemdata','orddata'];
 const ls={get:k=>{try{return localStorage.getItem(k);}catch(e){return null;}},
           set:(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}},
           del:k=>{try{localStorage.removeItem(k);}catch(e){}}};
