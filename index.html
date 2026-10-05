@@ -229,6 +229,7 @@ tbody tr.late:hover td{filter:brightness(.97)}
       <button class="mode" data-m="po">ניהול הזמנות</button>
       <button class="mode" data-m="sup">ניהול ספקים</button>
       <button class="mode" data-m="spend">ניתוח ספנד</button>
+      <button class="mode" data-m="item">ניהול פריטים</button>
     </div>
     <div class="mast-act">
       <button class="btn btn-solid" id="btnLoad">טעינת קובץ</button>
@@ -237,6 +238,7 @@ tbody tr.late:hover td{filter:brightness(.97)}
       <input type="file" id="file" accept=".xlsx,.xls,.csv" class="hide">
       <input type="file" id="sfile" accept=".xlsx,.xls,.csv" class="hide">
       <input type="file" id="pfile" accept=".xlsx,.xls,.csv" class="hide">
+      <input type="file" id="ifile" accept=".xlsx,.xls,.csv" class="hide">
     </div>
   </div>
 </header>
@@ -261,6 +263,12 @@ tbody tr.late:hover td{filter:brightness(.97)}
   <section class="panel" id="p-ppivot"></section>
   <section class="panel" id="p-pins"></section>
   <section class="panel" id="p-pload"></section>
+  <section class="panel" id="p-iover"></section>
+  <section class="panel" id="p-ispend"></section>
+  <section class="panel" id="p-isup"></section>
+  <section class="panel" id="p-icat"></section>
+  <section class="panel" id="p-iins"></section>
+  <section class="panel" id="p-iload"></section>
   <section class="panel" id="p-load"></section>
 </main>
 
@@ -427,6 +435,7 @@ const S={
   supCustom:false,
   sf:null,sd:null,
   spend:[],spendLabel:'',pf:null,pd:null,pPending:null,
+  items:[],itemLabel:'',itd:null,itf:null,itemSel:null,isort:null,itemBusy:'',
   yA:null,yB:null,pivotDim:'supplier',pivotPer:'year',
   supMeta:store('supmeta')||{},
   supSel:null,
@@ -593,6 +602,7 @@ function exportAoa(aoa,name){
    RENDERERS
    ============================================================ */
 function renderMeta(){
+  if(S.mode==='item'){renderItemMeta();return;}
   if(S.mode==='spend'){
     const rows=S.spend.length?spendFiltered():[],tot=spendSum(rows);
     const sups=spendGroup(rows,r=>r.key),yrs=[...new Set(rows.map(r=>r.year).filter(Boolean))].sort();
@@ -1943,6 +1953,541 @@ function readSpendFile(file){
   fr.readAsArrayBuffer(file);
 }
 
+/* ============================================================
+   מודול ניהול פריטים — קובץ כרטיס פריט (Priority), מחובר לדוח
+   הספנד ולדוח ההזמנות לפי מק"ט
+   ============================================================ */
+const ITEM_ALIAS={
+  sku:['מקט'],
+  desc:['תאור','תיאור','תאורפריט'],
+  supNo:['ספקמועדף'],
+  supName:['שםספק'],
+  group:['קבוצתרכש'],
+  family:['תאורמשפחה'],
+  status:['סטטוס'],
+  ptype:['טיפוס'],
+  itype:['סיווגמלאיסוגפריט','תיאורסוגפריט'],
+  cat:['קטגוריתמלאי'],
+  wh:['קבוצתפריטמחסןטכני'],
+  topGroup:['תיאורTOPGROUP'],
+  buyer:['קניין'],
+  handler:['לטיפול'],
+  unit:['יחקניהמכירה'],
+  lastPrice:['מחירקניהאחרון'],
+  curr:['מטבע'],
+  lastPriceDate:['תאריךמחיראחרון'],
+  costILS:['עלותILS'],
+  opened:['תאריךפתיחה'],
+  lastIn:['תאריךכניסהאחרון'],
+  lastOut:['תאריךיציאהאחרון'],
+  lastMove:['תנועהאחרונהבמפעל'],
+  descEn:['תאורלועזי']
+};
+const ITEM_LABEL={sku:'מק״ט',desc:'תיאור',supNo:'ספק מועדף',supName:'שם ספק',group:'קבוצת רכש',family:'משפחת מוצר',
+  status:'סטטוס',ptype:'טיפוס',itype:'סוג פריט',cat:'קטגוריית מלאי',wh:'קבוצת מחסן טכני',topGroup:'TOP GROUP',buyer:'קניין',
+  handler:'לטיפול',unit:'יחידה',lastPrice:'מחיר קנייה אחרון',curr:'מטבע',lastPriceDate:'תאריך מחיר אחרון',costILS:'עלות ₪',
+  opened:'תאריך פתיחה',lastIn:'כניסה אחרונה',lastOut:'יציאה אחרונה',lastMove:'תנועה אחרונה במפעל',descEn:'תיאור לועזי'};
+const ITEM_KEYS=Object.keys(ITEM_ALIAS);
+const ITEM_DATE=['lastPriceDate','opened','lastIn','lastOut','lastMove'];
+const ITEM_NUM=['lastPrice','costILS'];
+/* שערי המרה משוערים לחישוב מחיר בשקלים — ניתנים לעריכה בלשונית הטעינה */
+const FX_DEFAULT={ILS:1,USD:3.7,EUR:4,GBP:4.7,CHF:4.1};
+function itemFx(){return Object.assign({},FX_DEFAULT,store('ifx')||{});}
+const skuKey=v=>v==null?'':String(v).trim().toUpperCase();
+const yearsAgo=(iso,y)=>{if(!iso)return true;const d=new Date();d.setFullYear(d.getFullYear()-y);return iso<d.toISOString().slice(0,10);};
+
+function deriveItems(list){
+  const fx=itemFx();
+  const spendBy=new Map(),openBy=new Map();
+  S.spend.forEach(r=>{const k=skuKey(r.sku);if(!k)return;let g=spendBy.get(k);
+    if(!g){g={v:0,qty:0,n:0,sups:new Map(),years:new Map(),last:null};spendBy.set(k,g);}
+    g.v+=r.amount||0;g.qty+=r.qty||0;g.n++;
+    const sk=r.supplier||r.supplierNo||'—';g.sups.set(sk,(g.sups.get(sk)||0)+(r.amount||0));
+    if(r.year)g.years.set(r.year,(g.years.get(r.year)||0)+(r.amount||0));
+    if(r.date&&(!g.last||r.date>g.last))g.last=r.date;});
+  S.rows.forEach(r=>{const k=skuKey(r.sku);if(!k)return;let g=openBy.get(k);
+    if(!g){g={v:0,n:0,rows:[]};openBy.set(k,g);}g.v+=r.openILS||0;g.n++;g.rows.push(r);});
+  list.forEach(r=>{
+    ITEM_NUM.forEach(k=>{if(typeof r[k]==='string')r[k]=toNum(r[k]);});
+    r.k=skuKey(r.sku);
+    r.itype=r.itype||'ללא סיווג';r.cat=r.cat||'—';r.wh=r.wh||'—';r.group=r.group||'—';r.status=r.status||'—';
+    r.supKey=r.supNo?String(r.supNo).trim():'';
+    r.priceILS=r.lastPrice?(r.curr&&r.curr!=='ILS'?(fx[r.curr]?r.lastPrice*fx[r.curr]:null):r.lastPrice):null;
+    r.move=[r.lastMove,r.lastIn,r.lastOut].filter(Boolean).sort().pop()||null;
+    r.dormant=yearsAgo(r.move,3);
+    r.stalePrice=!!(r.lastPrice&&yearsAgo(r.lastPriceDate,2));
+    const sp=spendBy.get(r.k),op=openBy.get(r.k);
+    r.spend=sp?sp.v:0;r.spendQty=sp?sp.qty:0;r.spendN=sp?sp.n:0;r.spendSups=sp?sp.sups:null;r.spendYears=sp?sp.years:null;r.spendLast=sp?sp.last:null;
+    r.openPO=op?op.v:0;r.openRows=op?op.rows:[];
+    r.hay=((r.sku||'')+' '+(r.desc||'')+' '+(r.descEn||'')+' '+(r.supName||'')+' '+(r.supNo||'')+' '+r.itype+' '+r.cat+' '+r.wh+' '+r.group+' '+(r.family||'')).toLowerCase();
+  });
+  return list;
+}
+const hasItemSpend=()=>S.items.some(r=>r.spend);
+function refreshItemLinks(){if(S.items.length)S.items=deriveItems(S.items);}
+
+/* ---------- שמירה דחוסה: הקובץ גדול מדי לשמירה רגילה ---------- */
+async function packItems(rows){
+  const json=JSON.stringify({keys:ITEM_KEYS,rows:rows.map(r=>ITEM_KEYS.map(k=>r[k]??null))});
+  const buf=new Uint8Array(await new Response(new Blob([json]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer());
+  let s='';for(let i=0;i<buf.length;i+=0x8000)s+=String.fromCharCode.apply(null,buf.subarray(i,i+0x8000));
+  return btoa(s);
+}
+async function unpackItems(z){
+  const bin=atob(z),buf=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)buf[i]=bin.charCodeAt(i);
+  const d=JSON.parse(await new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).text());
+  return d.rows.map(a=>{const o={};d.keys.forEach((k,i)=>o[k]=a[i]);return o;});
+}
+
+/* ---------- סינון ---------- */
+function newItemFilters(){return{itypes:new Set(),cats:new Set(),whs:new Set(),statuses:new Set(),groups:new Set(),sups:new Set(),q:'',
+  onlyPrice:false,onlyNoSup:false,onlyDormant:false,onlySpend:false};}
+function cloneItemF(f){return{itypes:new Set(f.itypes),cats:new Set(f.cats),whs:new Set(f.whs),statuses:new Set(f.statuses),groups:new Set(f.groups),
+  sups:new Set(f.sups),q:f.q,onlyPrice:f.onlyPrice,onlyNoSup:f.onlyNoSup,onlyDormant:f.onlyDormant,onlySpend:f.onlySpend};}
+function applyItemFilters(){S.itf=cloneItemF(S.itd);S.dirty=false;S.limit=150;render();}
+function itemFiltered(){
+  const f=S.itf,q=f.q.toLowerCase().trim();
+  return S.items.filter(r=>{
+    if(f.itypes.size&&!f.itypes.has(r.itype))return false;
+    if(f.cats.size&&!f.cats.has(r.cat))return false;
+    if(f.whs.size&&!f.whs.has(r.wh))return false;
+    if(f.statuses.size&&!f.statuses.has(r.status))return false;
+    if(f.groups.size&&!f.groups.has(r.group))return false;
+    if(f.sups.size&&!f.sups.has(r.supKey||'—'))return false;
+    if(f.onlyPrice&&!r.lastPrice)return false;
+    if(f.onlyNoSup&&r.supKey)return false;
+    if(f.onlyDormant&&!r.dormant)return false;
+    if(f.onlySpend&&!r.spend)return false;
+    if(q&&r.hay.indexOf(q)<0)return false;
+    return true;
+  });
+}
+function itemBar(){
+  const d=S.itd;
+  const chip=(id,key,label,items)=>`<div class="fgrp" style="flex:1 1 220px"><span class="flab">${label}${d[key].size?' ('+d[key].size+')':''}</span>
+    <div class="chips" id="${id}">${items.map(([k,n])=>`<button class="chip" data-v="${esc(k)}" aria-pressed="${d[key].has(k)}">${esc(k)}<span class="n">${nf0.format(n)}</span></button>`).join('')}</div></div>`;
+  const supNote=d.sups.size?`<div class="fgrp" style="flex:1 1 100%"><span class="tag t-sea">מסונן לפי ${d.sups.size} ספקים</span>
+    <button class="btn btn-sm" id="itSupClr" style="margin-inline-start:6px">הסרת סינון ספק</button></div>`:'';
+  return `<div class="filters">
+    <div class="fgrp" style="flex:1 1 220px"><label class="flab" for="itq">חיפוש</label>
+      <input type="search" id="itq" placeholder="מק״ט, תיאור, ספק…" value="${esc(d.q)}"></div>
+    ${chip('itType','itypes','סוג פריט',uniq(S.items,'itype').slice(0,14))}
+    <details style="flex:1 1 100%" ${d.cats.size||d.whs.size||d.statuses.size||d.groups.size||S.itAdv?'open':''} id="itAdv">
+      <summary style="cursor:pointer;font-size:12.5px;color:var(--steel)">סינון נוסף: קטגוריה, קבוצת מחסן, סטטוס, קבוצת רכש${(d.cats.size+d.whs.size+d.statuses.size+d.groups.size)?' ('+(d.cats.size+d.whs.size+d.statuses.size+d.groups.size)+' נבחרו)':''}</summary>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:10px">
+      ${chip('itCat','cats','קטגוריית מלאי',uniq(S.items,'cat').slice(0,14))}
+      ${chip('itWh','whs','קבוצת מחסן טכני',uniq(S.items,'wh').slice(0,16))}
+      ${chip('itStat','statuses','סטטוס',uniq(S.items,'status'))}
+      ${chip('itGrp','groups','קבוצת רכש',uniq(S.items,'group').slice(0,12))}</div></details>
+    <div class="fgrp" style="flex:1 1 200px"><span class="flab">הצגה</span>
+      <label class="ck"><input type="checkbox" id="itOP" ${d.onlyPrice?'checked':''}>רק פריטים עם מחיר קנייה</label>
+      <label class="ck"><input type="checkbox" id="itON" ${d.onlyNoSup?'checked':''}>רק ללא ספק מועדף</label>
+      <label class="ck"><input type="checkbox" id="itOD" ${d.onlyDormant?'checked':''}>רק פריטים רדומים (3+ שנים)</label>
+      ${hasItemSpend()?`<label class="ck"><input type="checkbox" id="itOS" ${d.onlySpend?'checked':''}>רק פריטים עם הוצאה בפועל</label>`:''}</div>
+    ${supNote}
+    <div class="fgrp" style="flex:0 1 auto;align-self:flex-end;display:flex;gap:6px">
+      ${refreshBtn('','רענון תצוגה')}<button class="btn btn-sm" id="itClear">איפוס סינון</button></div>
+  </div>`;
+}
+function bindItemBar(){
+  const d=S.itd,q=$('#itq');
+  if(q){q.oninput=()=>{d.q=q.value;markDirty();};q.onkeydown=e=>{if(e.key==='Enter')applyItemFilters();};}
+  bindChips($('#itType'),d.itypes);bindChips($('#itCat'),d.cats);bindChips($('#itWh'),d.whs);
+  bindChips($('#itStat'),d.statuses);bindChips($('#itGrp'),d.groups);
+  [['itOP','onlyPrice'],['itON','onlyNoSup'],['itOD','onlyDormant'],['itOS','onlySpend']].forEach(([id,k])=>{
+    const c=$('#'+id);if(c)c.onchange=()=>{d[k]=c.checked;markDirty();};});
+  const c=$('#itClear');if(c)c.onclick=()=>{S.itd=newItemFilters();applyItemFilters();};
+  const adv=$('#itAdv');if(adv)adv.ontoggle=()=>{S.itAdv=adv.open;};
+  const s=$('#itSupClr');if(s)s.onclick=()=>{S.itd.sups=new Set();applyItemFilters();};
+}
+function itemGroup(arr,fn){
+  const m=new Map();
+  arr.forEach(r=>{const k=fn(r);if(k==null)return;let g=m.get(k);
+    if(!g){g={k,n:0,spend:0,open:0,priced:0,active:0,rows:[]};m.set(k,g);}
+    g.n++;g.spend+=r.spend;g.open+=r.openPO;if(r.lastPrice)g.priced++;if(r.status==='פעיל')g.active++;g.rows.push(r);});
+  return [...m.values()];
+}
+const itemPrice=r=>r.lastPrice?`<span class="num">${nf2.format(r.lastPrice)} ${esc(r.curr||'')}</span>${r.curr&&r.curr!=='ILS'&&r.priceILS?`<span class="sub num">≈ ${money(r.priceILS)}</span>`:''}${r.lastPriceDate?`<span class="sub">${dstr(r.lastPriceDate)}</span>`:''}`:'<span style="color:var(--faint)">—</span>';
+const itemStatusTag=s=>`<span class="tag ${s==='פעיל'?'t-moss':s==='לא פעיל'||s==='אסור לקניה'?'t-red':'t-mute'}">${esc(s)}</span>`;
+function itemsToAoa(rows){
+  const sp=hasItemSpend();
+  return [['מק״ט','תיאור','סוג פריט','קטגוריה','קבוצת מחסן','קבוצת רכש','סטטוס','מס׳ ספק מועדף','ספק מועדף','מחיר קנייה אחרון','מטבע','מחיר ₪ (משוער)','תאריך מחיר','עלות ₪','תנועה אחרונה','רדום']
+    .concat(sp?['הוצאה בפועל ₪','כמות שנקנתה','תנועות']:[],['הזמנות פתוחות ₪'])]
+    .concat(rows.map(r=>[r.sku,r.desc,r.itype,r.cat,r.wh,r.group,r.status,r.supNo||'',r.supName||'',r.lastPrice||'',r.curr||'',
+      r.priceILS?Math.round(r.priceILS*100)/100:'',r.lastPriceDate?dstr(r.lastPriceDate):'',r.costILS||'',r.move?dstr(r.move):'',r.dormant?'כן':'']
+      .concat(sp?[Math.round(r.spend),r.spendQty||'',r.spendN||'']:[],[Math.round(r.openPO)||''])));
+}
+
+/* ---------- סקירת פריטים ---------- */
+function renderItemOverview(){
+  const p=$('#p-iover'),rows=itemFiltered(),n=rows.length||1;
+  const act=rows.filter(r=>r.status==='פעיל').length,withSup=rows.filter(r=>r.supKey).length,priced=rows.filter(r=>r.lastPrice).length;
+  const dorm=rows.filter(r=>r.dormant).length,sp=hasItemSpend(),totSp=rows.reduce((s,r)=>s+r.spend,0);
+  const byType=itemGroup(rows,r=>r.itype).sort((a,b)=>b.n-a.n),byCat=itemGroup(rows,r=>r.cat).sort((a,b)=>b.n-a.n);
+  const byWh=itemGroup(rows,r=>r.wh).filter(g=>g.k!=='—').sort((a,b)=>b.n-a.n),byStat=itemGroup(rows,r=>r.status).sort((a,b)=>b.n-a.n);
+  const byYear=itemGroup(rows.filter(r=>r.opened),r=>r.opened.slice(0,4)).sort((a,b)=>a.k<b.k?-1:1);
+  const byCurr=itemGroup(rows.filter(r=>r.lastPrice),r=>r.curr||'—').sort((a,b)=>b.n-a.n);
+  const metric=sp?(g=>g.spend):(g=>g.n),mlab=sp?(g=>money(g.spend)+' · '+nf0.format(g.n)+' פריטים'):(g=>nf0.format(g.n)+' פריטים');
+  const pct=x=>(x/n*100).toFixed(0)+'%';
+  p.innerHTML=`
+  <div class="sec">${itemBar()}</div>
+  <div class="sec grid3">
+    <div class="box box-p"><div class="gauge-k">פריטים בתצוגה</div><div class="gauge-v">${nf0.format(rows.length)}</div>
+      <div class="gauge-s">${nf0.format(act)} פעילים · ${pct(act)}</div></div>
+    <div class="box box-p"><div class="gauge-k">עם ספק מועדף</div><div class="gauge-v">${pct(withSup)}</div>
+      <div class="gauge-s">${nf0.format(rows.length-withSup)} פריטים ללא ספק · ${nf0.format(new Set(rows.map(r=>r.supKey).filter(Boolean)).size)} ספקים</div></div>
+    <div class="box box-p"><div class="gauge-k">עם מחיר קנייה אחרון</div><div class="gauge-v">${pct(priced)}</div>
+      <div class="gauge-s">${nf0.format(priced)} פריטים · ${nf0.format(rows.filter(r=>r.stalePrice).length)} עם מחיר בן יותר משנתיים</div></div>
+    <div class="box box-p"><div class="gauge-k">פריטים רדומים</div><div class="gauge-v" style="color:${dorm?'var(--amber)':'var(--moss)'}">${nf0.format(dorm)}</div>
+      <div class="gauge-s">${pct(dorm)} · ללא תנועה במפעל 3 שנים ומעלה</div></div>
+    <div class="box box-p"><div class="gauge-k">${sp?'הוצאה בפועל על הפריטים':'הוצאה בפועל'}</div><div class="gauge-v" style="${sp?'':'font-size:20px'}">${sp?short(totSp):'טרם חוברה'}</div>
+      <div class="gauge-s">${sp?nf0.format(rows.filter(r=>r.spend).length)+' מק״טים עם הוצאה':'טענו דוח ספנד עם עמודת מק״ט במודול ניתוח ספנד'}</div></div>
+    <div class="box box-p"><div class="gauge-k">הזמנות פתוחות על הפריטים</div><div class="gauge-v">${short(rows.reduce((s,r)=>s+r.openPO,0))}</div>
+      <div class="gauge-s">${nf0.format(rows.filter(r=>r.openPO).length)} מק״טים בהזמנות פתוחות</div></div>
+  </div>
+  <div class="sec grid2">
+    <div class="box box-p"><div class="chart-t">${sp?'הוצאה לפי סוג פריט':'פריטים לפי סוג פריט'}</div><div class="chart-s">סיווג מלאי / סוג פריט מכרטיס הפריט</div>
+      <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+        ${donut(byType.slice().sort((a,b)=>metric(b)-metric(a)).slice(0,9).map((g,i)=>({k:g.k,v:metric(g),c:PALETTE[i%10]})),150)}
+        <div class="legend" style="flex:1">${byType.slice().sort((a,b)=>metric(b)-metric(a)).slice(0,9).map((g,i)=>`<div><span class="sw" style="background:${PALETTE[i%10]}"></span>${esc(g.k)}<span class="lv">${sp?short(g.spend):nf0.format(g.n)}</span></div>`).join('')}</div>
+      </div></div>
+    <div class="box box-p"><div class="chart-t">${sp?'הוצאה לפי קטגוריית מלאי':'פריטים לפי קטגוריית מלאי'}</div><div class="chart-s">12 הקטגוריות המובילות</div>
+      ${bars(byCat.slice().sort((a,b)=>metric(b)-metric(a)).slice(0,12).map(g=>({k:g.k,v:metric(g),lab:mlab(g),cls:'amb'})))}</div>
+  </div>
+  <div class="sec grid2">
+    <div class="box box-p"><div class="chart-t">${sp?'הוצאה לפי קבוצת מחסן טכני':'פריטים לפי קבוצת מחסן טכני'}</div><div class="chart-s">לחיצה על קבוצה במסנן למעלה מצמצמת את כל הלשוניות</div>
+      ${bars(byWh.slice().sort((a,b)=>metric(b)-metric(a)).slice(0,14).map(g=>({k:g.k,v:metric(g),lab:mlab(g)})))}</div>
+    <div class="box box-p"><div class="chart-t">סטטוס פריטים</div><div class="chart-s">פעיל, לא פעיל, אסור לקנייה ועוד</div>
+      ${bars(byStat.map(g=>({k:g.k,v:g.n,lab:nf0.format(g.n)+' · '+pct(g.n),cls:g.k==='פעיל'?'moss':g.k==='לא פעיל'||g.k==='אסור לקניה'?'red':''})))}
+      <div class="chart-t" style="margin-top:18px">מטבע מחיר הקנייה האחרון</div><div class="chart-s">חשיפה למט״ח ברמת הפריט</div>
+      ${bars(byCurr.map(g=>({k:g.k,v:g.n,lab:nf0.format(g.n)+' פריטים',cls:g.k==='ILS'?'moss':'amb'})))}</div>
+  </div>
+  <div class="sec"><div class="box box-p"><div class="chart-t">פתיחת פריטים לפי שנה</div>
+    <div class="chart-s">כמה מק״טים חדשים נפתחו בכל שנה</div>
+    <div style="overflow-x:auto">${byYear.length?columns(byYear.map(g=>({k:g.k,lab:g.k,v:g.n,vlab:nf0.format(g.n),c:'var(--brand)'}))):'<div class="chart-s">אין נתונים.</div>'}</div></div></div>`;
+  bindItemBar();
+}
+
+/* ---------- הוצאות לפי מק"ט ---------- */
+function renderItemSpend(){
+  const p=$('#p-ispend'),rows=itemFiltered(),sp=hasItemSpend();
+  let body;
+  if(sp){
+    const withSp=rows.filter(r=>r.spend).sort((a,b)=>b.spend-a.spend),tot=withSp.reduce((s,r)=>s+r.spend,0);
+    let cum=0;const par=withSp.map(r=>{cum+=r.spend;return{r,cum};});const p80=par.findIndex(x=>x.cum>=tot*0.8)+1;
+    const known=new Set(S.items.map(r=>r.k)),orphan=S.spend.filter(r=>skuKey(r.sku)&&!known.has(skuKey(r.sku)));
+    const noSku=S.spend.filter(r=>!skuKey(r.sku));
+    const offPref=withSp.filter(r=>r.supName&&r.spendSups&&![...r.spendSups.keys()].some(k=>String(k).trim()===r.supName.trim()));
+    body=`
+    <div class="sec grid3">
+      <div class="box box-p"><div class="gauge-k">הוצאה על פריטים בתצוגה</div><div class="gauge-v">${short(tot)}</div>
+        <div class="gauge-s">${nf0.format(withSp.length)} מק״טים עם הוצאה · ${nf0.format(withSp.reduce((s,r)=>s+r.spendN,0))} תנועות</div></div>
+      <div class="box box-p"><div class="gauge-k">ריכוזיות</div><div class="gauge-v">${p80>0?nf0.format(p80):'—'}</div>
+        <div class="gauge-s">מק״טים מרכזים 80% מההוצאה${withSp.length?' · '+(p80/withSp.length*100).toFixed(0)+'% מהמק״טים':''}</div></div>
+      <div class="box box-p"><div class="gauge-k">נקנו שלא מהספק המועדף</div><div class="gauge-v" style="color:${offPref.length?'var(--amber)':'var(--moss)'}">${nf0.format(offPref.length)}</div>
+        <div class="gauge-s">${money(offPref.reduce((s,r)=>s+r.spend,0))} · מק״טים שכל ההוצאה עליהם הלכה לספק אחר</div></div>
+      <div class="box box-p"><div class="gauge-k">הוצאה ללא כרטיס פריט</div><div class="gauge-v" style="color:${orphan.length?'var(--amber)':'var(--moss)'}">${short(spendSum(orphan))}</div>
+        <div class="gauge-s">${nf0.format(new Set(orphan.map(r=>skuKey(r.sku))).size)} מק״טים בדוח הספנד שלא נמצאו בקובץ הפריטים</div></div>
+      <div class="box box-p"><div class="gauge-k">הוצאה ללא מק״ט</div><div class="gauge-v">${short(spendSum(noSku))}</div>
+        <div class="gauge-s">${nf0.format(noSku.length)} תנועות בדוח הספנד בלי מק״ט</div></div>
+    </div>
+    <div class="sec grid2">
+      <div class="box box-p"><div class="chart-t">20 המק״טים עם ההוצאה הגבוהה</div><div class="chart-s">לפי סך ההוצאה בפועל בדוח הספנד</div>
+        ${bars(withSp.slice(0,20).map(r=>({k:r.sku+' · '+(r.desc||''),v:r.spend,lab:money(r.spend)+' · '+(r.spend/tot*100).toFixed(1)+'%',cls:'moss'})))}</div>
+      <div class="box box-p"><div class="chart-t">הוצאה לפי סוג פריט</div><div class="chart-s">על המק״טים בתצוגה</div>
+        ${bars(itemGroup(withSp,r=>r.itype).sort((a,b)=>b.spend-a.spend).slice(0,10).map(g=>({k:g.k,v:g.spend,lab:money(g.spend)+' · '+nf0.format(g.n)+' מק״טים',cls:'amb'})))}
+        <div class="chart-t" style="margin-top:18px">הוצאה לפי קבוצת מחסן</div><div class="chart-s">10 הקבוצות המובילות</div>
+        ${bars(itemGroup(withSp,r=>r.wh).sort((a,b)=>b.spend-a.spend).slice(0,10).map(g=>({k:g.k,v:g.spend,lab:money(g.spend)})))}</div>
+    </div>
+    <div class="sec">
+      <div class="sec-h"><h2>פירוט הוצאה לפי מק״ט (${nf0.format(withSp.length)})</h2><p>לחיצה על שורה פותחת את כרטיס הפריט</p>
+        <button class="btn btn-sm" id="xIsp">ייצוא לאקסל</button></div>
+      <div class="tscroll"><table><thead><tr><th style="cursor:default">מק״ט ותיאור</th><th style="cursor:default">סוג / קבוצה</th>
+        <th style="cursor:default">ספק מועדף</th><th style="cursor:default">ספקים בפועל</th>
+        <th style="cursor:default" class="ta-e">הוצאה</th><th style="cursor:default" class="ta-e">% מצטבר</th>
+        <th style="cursor:default" class="ta-e">כמות</th><th style="cursor:default" class="ta-e">מחיר ממוצע</th><th style="cursor:default" class="ta-e">מחיר אחרון</th></tr></thead><tbody>
+        ${par.slice(0,S.limit).map(({r,cum})=>{const ss=[...r.spendSups.entries()].sort((a,b)=>b[1]-a[1]);
+          return `<tr class="clickrow" data-sku="${esc(r.k)}"><td class="desc">${esc(r.desc||'')}<span class="sub">${esc(r.sku)}</span></td>
+          <td>${esc(r.itype)}<span class="sub">${esc(r.wh)}</span></td><td>${esc(r.supName||'—')}</td>
+          <td>${esc(String(ss[0][0]).slice(0,28))}${ss.length>1?`<span class="sub">+${ss.length-1} ספקים נוספים</span>`:''}</td>
+          <td class="ta-e num">${money(r.spend)}</td><td class="ta-e num" style="color:var(--steel)">${(cum/tot*100).toFixed(1)}%</td>
+          <td class="ta-e num">${r.spendQty?qty(r.spendQty)+' '+esc(r.unit||''):'—'}</td>
+          <td class="ta-e num">${r.spendQty?money(r.spend/r.spendQty):'—'}</td><td class="ta-e">${itemPrice(r)}</td></tr>`;}).join('')}
+      </tbody></table></div>
+      ${par.length>S.limit?`<div class="more"><button class="btn" id="ispMore">הצגת 150 נוספים</button></div>`:''}</div>`;
+    p.innerHTML=`<div class="sec">${itemBar()}</div>`+body;
+    $('#xIsp').onclick=()=>exportAoa(itemsToAoa(withSp),'הוצאות לפי מקט');
+  }else{
+    const priced=rows.filter(r=>r.priceILS).sort((a,b)=>b.priceILS-a.priceILS);
+    p.innerHTML=`<div class="sec">${itemBar()}</div>
+    <div class="sec"><div class="box box-p" style="border-inline-start:3px solid var(--amber)">
+      <div class="chart-t">כדי לראות הוצאה בפועל לפי מק״ט</div>
+      <div class="note" style="font-size:13px;color:var(--steel)">קובץ כרטיס הפריט כולל מחיר קנייה אחרון אבל לא כמויות. טענו במודול <b>ניתוח ספנד</b> דוח הוצאות (חשבוניות / תנועות רכש) שיש בו עמודת <b>מק״ט</b>, והמערכת תחבר אותו אוטומטית לכל פריט: הוצאה, כמות, מחיר ממוצע וספקים בפועל.
+      בינתיים מוצג דירוג הפריטים לפי מחיר יחידה אחרון (בשקלים, לפי שערי ההמרה בלשונית הטעינה).</div>
+      <button class="btn btn-sm btn-solid" id="goSpend" style="margin-top:10px">מעבר לטעינת דוח ספנד</button></div></div>
+    <div class="sec grid2">
+      <div class="box box-p"><div class="chart-t">20 הפריטים היקרים ביחידה</div><div class="chart-s">מחיר קנייה אחרון, משוער בשקלים</div>
+        ${bars(priced.slice(0,20).map(r=>({k:r.sku+' · '+(r.desc||''),v:r.priceILS,lab:money(r.priceILS),cls:'amb'})))}</div>
+      <div class="box box-p"><div class="chart-t">ממוצע מחיר יחידה לפי סוג פריט</div><div class="chart-s">פריטים עם מחיר קנייה אחרון בלבד</div>
+        ${bars(itemGroup(priced,r=>r.itype).map(g=>({...g,avg:g.rows.reduce((s,r)=>s+r.priceILS,0)/g.n})).sort((a,b)=>b.avg-a.avg).slice(0,12)
+          .map(g=>({k:g.k,v:g.avg,lab:money(g.avg)+' · '+nf0.format(g.n)+' פריטים'})))}</div>
+    </div>
+    <div class="sec"><div class="sec-h"><h2>פריטים לפי מחיר יחידה (${nf0.format(priced.length)})</h2>
+      <button class="btn btn-sm" id="xIsp">ייצוא לאקסל</button></div>
+      <div class="tscroll"><table><thead><tr><th style="cursor:default">מק״ט ותיאור</th><th style="cursor:default">סוג / קבוצה</th>
+        <th style="cursor:default">ספק מועדף</th><th style="cursor:default" class="ta-e">מחיר אחרון</th><th style="cursor:default" class="ta-e">≈ ₪</th>
+        <th style="cursor:default" class="ta-e">הזמנות פתוחות</th></tr></thead><tbody>
+        ${priced.slice(0,S.limit).map(r=>`<tr class="clickrow" data-sku="${esc(r.k)}"><td class="desc">${esc(r.desc||'')}<span class="sub">${esc(r.sku)}</span></td>
+          <td>${esc(r.itype)}<span class="sub">${esc(r.wh)}</span></td><td>${esc(r.supName||'—')}</td>
+          <td class="ta-e">${itemPrice(r)}</td><td class="ta-e num">${money(r.priceILS)}</td><td class="ta-e num">${r.openPO?money(r.openPO):'—'}</td></tr>`).join('')}
+      </tbody></table></div>
+      ${priced.length>S.limit?`<div class="more"><button class="btn" id="ispMore">הצגת 150 נוספים</button></div>`:''}</div>`;
+    $('#goSpend').onclick=()=>{S.mode='spend';S.tab='pload';render();};
+    $('#xIsp').onclick=()=>exportAoa(itemsToAoa(priced),'פריטים לפי מחיר');
+  }
+  bindItemBar();bindItemRows(p);
+  const m=$('#ispMore');if(m)m.onclick=()=>{S.limit+=150;render();};
+}
+
+/* ---------- ספקים: לאן הולך הכסף ---------- */
+function renderItemSup(){
+  const p=$('#p-isup'),rows=itemFiltered(),sp=hasItemSpend();
+  const pref=itemGroup(rows.filter(r=>r.supKey),r=>r.supKey).map(g=>({...g,name:g.rows[0].supName||g.k}));
+  pref.sort((a,b)=>sp?(b.spend-a.spend)||(b.n-a.n):b.n-a.n);
+  const totN=rows.length||1,totSp=rows.reduce((s,r)=>s+r.spend,0)||1;
+  let actual='';
+  if(sp){
+    const m=new Map();
+    rows.forEach(r=>{if(!r.spendSups)return;r.spendSups.forEach((v,k)=>{let g=m.get(k);if(!g){g={k,v:0,skus:0};m.set(k,g);}g.v+=v;g.skus++;});});
+    const act=[...m.values()].sort((a,b)=>b.v-a.v),tot=act.reduce((s,g)=>s+g.v,0)||1;
+    actual=`<div class="box box-p"><div class="chart-t">לאן הולך הכסף בפועל</div><div class="chart-s">ספקים לפי הוצאה בדוח הספנד על המק״טים בתצוגה</div>
+      ${bars(act.slice(0,20).map(g=>({k:g.k,v:g.v,lab:money(g.v)+' · '+(g.v/tot*100).toFixed(1)+'% · '+nf0.format(g.skus)+' מק״טים',cls:'moss'})))}</div>`;
+  }
+  const top6=pref.map(g=>g.n).sort((x,y)=>y-x).slice(0,6).reduce((s,n)=>s+n,0);
+  p.innerHTML=`<div class="sec">${itemBar()}</div>
+  <div class="sec grid3">
+    <div class="box box-p"><div class="gauge-k">ספקים מועדפים</div><div class="gauge-v">${nf0.format(pref.length)}</div>
+      <div class="gauge-s">ממוצע ${nf0.format(pref.length?rows.filter(r=>r.supKey).length/pref.length:0)} פריטים לספק</div></div>
+    <div class="box box-p"><div class="gauge-k">תלות ב-6 הספקים הגדולים</div><div class="gauge-v">${(top6/totN*100).toFixed(0)}%</div>
+      <div class="gauge-s">מהפריטים בתצוגה מוגדרים על 6 ספקים בלבד</div></div>
+    <div class="box box-p"><div class="gauge-k">פריטים ללא ספק מועדף</div><div class="gauge-v" style="color:var(--amber)">${nf0.format(rows.filter(r=>!r.supKey).length)}</div>
+      <div class="gauge-s">${nf0.format(rows.filter(r=>!r.supKey&&r.status==='פעיל').length)} מהם פעילים</div></div>
+  </div>
+  <div class="sec grid2">
+    <div class="box box-p"><div class="chart-t">${sp?'הוצאה לפי ספק מועדף':'פריטים לפי ספק מועדף'}</div><div class="chart-s">20 הספקים המובילים לפי כרטיס הפריט</div>
+      ${bars(pref.slice(0,20).map(g=>({k:g.name,v:sp?g.spend:g.n,lab:sp?money(g.spend)+' · '+nf0.format(g.n)+' פריטים':nf0.format(g.n)+' פריטים · '+(g.n/totN*100).toFixed(1)+'%'})))}</div>
+    ${actual||`<div class="box box-p"><div class="chart-t">פריטים עם מחיר לפי ספק</div><div class="chart-s">כמה מהפריטים של כל ספק נקנו בפועל (יש להם מחיר קנייה אחרון)</div>
+      ${bars(pref.slice(0,20).map(g=>({k:g.name,v:g.priced,lab:nf0.format(g.priced)+' מתוך '+nf0.format(g.n),cls:'amb'})))}</div>`}
+  </div>
+  <div class="sec"><div class="sec-h"><h2>ספקים מועדפים (${nf0.format(pref.length)})</h2><p>לחיצה על ספק מסננת את כל לשוניות הפריטים לפריטים שלו</p>
+    <button class="btn btn-sm" id="xIsu">ייצוא לאקסל</button></div>
+    <div class="tscroll"><table><thead><tr><th style="cursor:default">ספק</th><th style="cursor:default" class="ta-e">פריטים</th>
+      <th style="cursor:default" class="ta-e">% מהפריטים</th><th style="cursor:default" class="ta-e">פעילים</th><th style="cursor:default" class="ta-e">עם מחיר</th>
+      ${sp?'<th style="cursor:default" class="ta-e">הוצאה בפועל</th><th style="cursor:default" class="ta-e">% מההוצאה</th>':''}
+      <th style="cursor:default" class="ta-e">הזמנות פתוחות</th><th style="cursor:default">סוגי פריט עיקריים</th></tr></thead><tbody>
+      ${pref.slice(0,S.limit).map(g=>`<tr class="clickrow" data-sup="${esc(g.k)}"><td>${esc(g.name)}<span class="sub">${esc(g.k)}</span></td>
+        <td class="ta-e num">${nf0.format(g.n)}</td><td class="ta-e num">${(g.n/totN*100).toFixed(1)}%</td>
+        <td class="ta-e num">${nf0.format(g.active)}</td><td class="ta-e num">${nf0.format(g.priced)}</td>
+        ${sp?`<td class="ta-e num">${money(g.spend)}</td><td class="ta-e num">${(g.spend/totSp*100).toFixed(1)}%</td>`:''}
+        <td class="ta-e num">${g.open?money(g.open):'—'}</td>
+        <td style="font-size:12px;color:var(--steel)">${uniq(g.rows,'wh').slice(0,3).map(x=>esc(x[0])).join(' · ')}</td></tr>`).join('')}
+    </tbody></table></div>
+    ${pref.length>S.limit?`<div class="more"><button class="btn" id="isuMore">הצגת 150 נוספים</button></div>`:''}</div>`;
+  bindItemBar();
+  p.querySelectorAll('[data-sup]').forEach(tr=>tr.onclick=()=>{S.itd.sups=new Set([tr.dataset.sup]);S.tab='icat';applyItemFilters();window.scrollTo({top:0,behavior:'smooth'});});
+  const m=$('#isuMore');if(m)m.onclick=()=>{S.limit+=150;render();};
+  $('#xIsu').onclick=()=>exportAoa([['מס׳ ספק','ספק','פריטים','% מהפריטים','פעילים','עם מחיר'].concat(sp?['הוצאה ₪']:[],['הזמנות פתוחות ₪'])]
+    .concat(pref.map(g=>[g.k,g.name,g.n,+(g.n/totN*100).toFixed(2),g.active,g.priced].concat(sp?[Math.round(g.spend)]:[],[Math.round(g.open)]))),'ספקים מועדפים');
+}
+
+/* ---------- קטלוג וכרטיס פריט ---------- */
+const ICOLS=[
+  {k:'sku',t:'מק״ט ותיאור',cls:'desc',f:r=>`${esc(r.desc||'')}<span class="sub">${esc(r.sku)}${r.unit?' · '+esc(r.unit):''}</span>`},
+  {k:'itype',t:'סוג פריט',f:r=>`${esc(r.itype)}<span class="sub">${esc(r.cat)}</span>`},
+  {k:'wh',t:'קבוצת מחסן',f:r=>`${esc(r.wh)}<span class="sub">${esc(r.group)}</span>`},
+  {k:'supName',t:'ספק מועדף',f:r=>r.supName?`${esc(r.supName)}<span class="sub">${esc(r.supNo)}</span>`:'<span class="tag t-amb">ללא ספק</span>'},
+  {k:'priceILS',t:'מחיר אחרון',cls:'ta-e',f:itemPrice},
+  {k:'spend',t:'הוצאה בפועל',cls:'ta-e',sp:1,f:r=>r.spend?`<span class="num">${money(r.spend)}</span><span class="sub">${nf0.format(r.spendN)} תנועות</span>`:'<span style="color:var(--faint)">—</span>'},
+  {k:'move',t:'תנועה אחרונה',f:r=>r.move?dstr(r.move)+(r.dormant?'<span class="sub" style="color:var(--amber)">רדום</span>':''):'<span class="sub" style="color:var(--amber)">אין תנועה</span>'},
+  {k:'status',t:'סטטוס',f:r=>itemStatusTag(r.status)}
+];
+function bindItemRows(p){
+  p.querySelectorAll('[data-sku]').forEach(tr=>tr.onclick=()=>{S.itemSel=tr.dataset.sku;S.tab='icat';render();window.scrollTo({top:0,behavior:'smooth'});});
+}
+function itemCard(r){
+  const fld=k=>{const v=r[k];if(v==null||v==='')return '<span style="color:var(--faint)">—</span>';
+    return ITEM_DATE.indexOf(k)>-1?dstr(v):ITEM_NUM.indexOf(k)>-1?nf2.format(v):esc(v);};
+  const yrs=r.spendYears?[...r.spendYears.entries()].sort((a,b)=>a[0]-b[0]):[];
+  const ss=r.spendSups?[...r.spendSups.entries()].sort((a,b)=>b[1]-a[1]):[];
+  const alt=r.supKey?S.items.filter(x=>x!==r&&x.supKey===r.supKey).length:0;
+  return `<div class="sec"><div class="box box-p">
+    <div class="sec-h" style="margin-bottom:4px"><h2>${esc(r.desc||r.sku)}</h2><p>${esc(r.sku)} · ${itemStatusTag(r.status)}${r.dormant?' <span class="tag t-amb">רדום</span>':''}${r.stalePrice?' <span class="tag t-amb">מחיר ישן</span>':''}</p>
+      <button class="btn btn-sm" id="itClose">סגירה</button></div>
+    <div class="kvgrid">${ITEM_KEYS.map(k=>`<div class="kv"><span class="kvk">${ITEM_LABEL[k]}</span><span class="kvv">${fld(k)}</span></div>`).join('')}
+      <div class="kv"><span class="kvk">מחיר משוער ₪</span><span class="kvv">${r.priceILS?money(r.priceILS):'—'}</span></div>
+      <div class="kv"><span class="kvk">פריטים נוספים אצל הספק</span><span class="kvv">${nf0.format(alt)}</span></div></div>
+    ${r.spend?`<div class="grid2" style="margin-top:14px">
+      <div><div class="chart-t">הוצאה לפי שנה</div><div class="chart-s">${money(r.spend)} · ${nf0.format(r.spendN)} תנועות${r.spendLast?' · אחרונה '+dstr(r.spendLast):''}</div>
+        ${columns(yrs.map(([y,v])=>({k:String(y),lab:String(y),v,c:'var(--brand)'})))}</div>
+      <div><div class="chart-t">ספקים בפועל</div><div class="chart-s">מי קיבל את הכסף על המק״ט הזה</div>
+        ${bars(ss.slice(0,8).map(([k,v])=>({k,v,lab:money(v),cls:r.supName&&String(k).trim()===r.supName.trim()?'moss':'amb'})))}</div></div>`:''}
+    ${r.openRows.length?`<div class="chart-t" style="margin-top:14px">הזמנות פתוחות (${r.openRows.length})</div>
+      <div class="tscroll" style="margin-top:6px"><table style="min-width:600px"><thead><tr><th style="cursor:default">הזמנה</th><th style="cursor:default">ספק</th>
+        <th style="cursor:default">ת. אספקה</th><th style="cursor:default" class="ta-e">יתרה</th><th style="cursor:default" class="ta-e">שווי</th></tr></thead><tbody>
+        ${r.openRows.map(o=>`<tr class="${o.late?'late':''}"><td>${esc(o.po)}</td><td>${esc(o.supplier||'')}</td><td>${dstr(o.due)}</td>
+          <td class="ta-e num">${qty(o.qtyOpen)}</td><td class="ta-e num">${money(o.openILS)}</td></tr>`).join('')}</tbody></table></div>`:''}
+  </div></div>`;
+}
+function renderItemCatalog(){
+  const p=$('#p-icat'),rows=itemFiltered(),sp=hasItemSpend();
+  const cols=ICOLS.filter(c=>!c.sp||sp);
+  if(!S.isort)S.isort={k:sp?'spend':'sku',dir:sp?-1:1};
+  const {k,dir}=S.isort;
+  const sorted=rows.slice().sort((a,b)=>{let x=a[k],y=b[k];
+    if(typeof x==='number'||typeof y==='number'||k==='priceILS'||k==='spend')return ((x||0)-(y||0))*dir;
+    return String(x==null?'':x).localeCompare(String(y==null?'':y),'he')*dir;});
+  const sel=S.itemSel&&S.items.find(r=>r.k===S.itemSel);
+  p.innerHTML=`<div class="sec">${itemBar()}</div>${sel?itemCard(sel):''}
+  <div class="sec"><div class="sec-h"><h2>קטלוג פריטים (${nf0.format(rows.length)})</h2><p>לחיצה על כותרת ממיינת · לחיצה על שורה פותחת כרטיס פריט</p>
+    <button class="btn btn-sm" id="xIcat">ייצוא לאקסל</button></div>
+    ${rows.length?`<div class="tscroll"><table><thead><tr>${cols.map(c=>`<th data-isk="${c.k}">${c.t} ${k===c.k?`<span class="ar">${dir>0?'▲':'▼'}</span>`:''}</th>`).join('')}</tr></thead>
+      <tbody>${sorted.slice(0,S.limit).map(r=>`<tr class="clickrow" data-sku="${esc(r.k)}">${cols.map(c=>`<td class="${c.cls||''}">${c.f(r)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+      ${sorted.length>S.limit?`<div class="more"><button class="btn" id="icMore">הצגת 150 שורות נוספות (${nf0.format(sorted.length-S.limit)} נותרו)</button></div>`:''}`
+    :`<div class="box empty"><b>אין פריטים התואמים את הסינון</b>נקו את המסננים או שנו את החיפוש.</div>`}</div>`;
+  bindItemBar();bindItemRows(p);
+  p.querySelectorAll('th[data-isk]').forEach(th=>th.onclick=()=>{const kk=th.dataset.isk;
+    S.isort=S.isort.k===kk?{k:kk,dir:-S.isort.dir}:{k:kk,dir:kk==='spend'||kk==='priceILS'||kk==='move'?-1:1};render();});
+  const m=$('#icMore');if(m)m.onclick=()=>{S.limit+=150;render();};
+  const c=$('#itClose');if(c)c.onclick=()=>{S.itemSel=null;render();};
+  $('#xIcat').onclick=()=>exportAoa(itemsToAoa(sorted),'קטלוג פריטים');
+}
+
+/* ---------- תובנות והמלצות ---------- */
+function itemRecs(rows){
+  const recs=[];
+  const add=(title,why,sev,list,extra)=>{if(list.length)recs.push({title,why,sev,rows:list,extra});};
+  add('פריטים פעילים ללא ספק מועדף','בלי ספק מועדף אין מחיר בסיס, וכל רכישה מתחילה מאפס. כדאי להגדיר ספק לפריטים שזזים.','sev-red',
+    rows.filter(r=>r.status==='פעיל'&&!r.supKey).sort((a,b)=>(b.spend-a.spend)||((b.move||'')<(a.move||'')?-1:1)));
+  if(hasItemSpend()){
+    add('נקנו מספק שאינו הספק המועדף','ההוצאה בפועל הלכה לספק אחר מזה שבכרטיס הפריט. לעדכן את הכרטיס או לבדוק למה לא נקנה מהמועדף.','sev-amb',
+      rows.filter(r=>r.spend&&r.supName&&r.spendSups&&![...r.spendSups.keys()].some(k=>String(k).trim()===r.supName.trim())).sort((a,b)=>b.spend-a.spend));
+    add('מק״טים עם הוצאה גבוהה ומספר ספקים','פריט שנקנה מכמה ספקים הוא מועמד למכרז או להסכם מסגרת עם ספק אחד.','sev-sea',
+      rows.filter(r=>r.spendSups&&r.spendSups.size>1).sort((a,b)=>b.spend-a.spend));
+  }
+  add('סטטוס "אסור לקנייה" עם הזמנה פתוחה','פריט חסום לקנייה מופיע בהזמנה פתוחה — לבדוק את ההזמנה או את הסטטוס.','sev-red',
+    rows.filter(r=>r.status==='אסור לקניה'&&r.openPO).sort((a,b)=>b.openPO-a.openPO));
+  add('מחיר קנייה אחרון ישן (מעל שנתיים)','מחיר ישן לא משקף את השוק. לפני ההזמנה הבאה כדאי לבקש הצעת מחיר מעודכנת.','sev-amb',
+    rows.filter(r=>r.stalePrice&&!r.dormant).sort((a,b)=>(b.priceILS||0)-(a.priceILS||0)));
+  add('פריטים רדומים שעדיין לא הוגדרו כלא פעילים','ללא תנועה במפעל 3 שנים ומעלה. מועמדים לסגירה או לבדיקת מלאי מת.','sev-sea',
+    rows.filter(r=>r.dormant&&r.status!=='לא פעיל'&&!r.openPO).sort((a,b)=>(b.priceILS||0)-(a.priceILS||0)));
+  const byDesc=new Map();rows.forEach(r=>{const d=norm(r.desc);if(d.length<6)return;let a=byDesc.get(d);if(!a){a=[];byDesc.set(d,a);}a.push(r);});
+  add('תיאורים כפולים — חשד למק״ט כפול','אותו תיאור בדיוק תחת כמה מק״טים. איחוד מק״טים מונע מלאי כפול ומאפשר לרכז קנייה.','sev-sea',
+    [...byDesc.values()].filter(a=>a.length>1).sort((a,b)=>b.length-a.length).flat());
+  return recs;
+}
+function renderItemInsights(){
+  const p=$('#p-iins'),rows=itemFiltered(),recs=itemRecs(rows);
+  p.innerHTML=`<div class="sec">${itemBar()}</div>
+  <div class="sec"><div class="sec-h"><h2>תובנות והמלצות לפעולה</h2><p>${recs.length?nf0.format(recs.length)+' נושאים · על הפריטים שבתצוגה':'לא נמצאו חריגות בפריטים שבתצוגה'}</p></div>
+  ${recs.map((x,i)=>`<div class="rec ${x.sev}"><div class="rec-h"><h3>${x.title}</h3><span class="why">${x.why}</span>
+      <span class="cnt">${nf0.format(x.rows.length)} פריטים</span><button class="btn btn-sm" data-xr="${i}">ייצוא</button></div>
+    <div class="rec-b"><div style="overflow-x:auto"><table><thead><tr><th style="cursor:default">מק״ט ותיאור</th><th style="cursor:default">סוג / קבוצה</th>
+      <th style="cursor:default">ספק מועדף</th><th style="cursor:default" class="ta-e">מחיר אחרון</th>
+      ${hasItemSpend()?'<th style="cursor:default" class="ta-e">הוצאה</th>':''}<th style="cursor:default">תנועה אחרונה</th><th style="cursor:default">סטטוס</th></tr></thead><tbody>
+      ${x.rows.slice(0,12).map(r=>`<tr class="clickrow" data-sku="${esc(r.k)}"><td class="desc">${esc(r.desc||'')}<span class="sub">${esc(r.sku)}</span></td>
+        <td>${esc(r.itype)}<span class="sub">${esc(r.wh)}</span></td><td>${esc(r.supName||'—')}</td><td class="ta-e">${itemPrice(r)}</td>
+        ${hasItemSpend()?`<td class="ta-e num">${r.spend?money(r.spend):'—'}</td>`:''}<td>${r.move?dstr(r.move):'—'}</td><td>${itemStatusTag(r.status)}</td></tr>`).join('')}
+    </tbody></table></div>${x.rows.length>12?`<div class="note" style="padding:0 16px 12px">מוצגים 12 מתוך ${nf0.format(x.rows.length)} · הרשימה המלאה בייצוא</div>`:''}</div></div>`).join('')}</div>`;
+  bindItemBar();bindItemRows(p);
+  p.querySelectorAll('[data-xr]').forEach(b=>b.onclick=e=>{e.stopPropagation();const x=recs[+b.dataset.xr];exportAoa(itemsToAoa(x.rows),x.title.slice(0,40));});
+}
+
+/* ---------- טעינת קובץ פריטים ---------- */
+function renderItemLoad(){
+  const fx=itemFx();
+  $('#p-iload').innerHTML=`<div class="sec"><div class="sec-h"><h2>טעינת קובץ כרטיס פריט</h2>
+    <p>ייצוא כרטיסי הפריטים מ-Priority (כמו "כרטיס פריט 2026.xlsx"). הקובץ נשמר במסד הנתונים ומשותף לכל המשתמשים.</p></div>
+    <div class="drop" id="idrop">גררו לכאן את קובץ הפריטים, או <button class="btn btn-sm" id="ipick" style="margin:0 4px">בחרו קובץ</button></div>
+    <div class="note">קובץ נוכחי: <b>${S.items.length?esc(S.itemLabel):'לא נטען'}</b>${S.items.length?' · '+nf0.format(S.items.length)+' פריטים':''}${S.itemBusy?' · <b>'+esc(S.itemBusy)+'</b>':''}</div></div>
+    <div class="sec"><div class="sec-h"><h2>חיבור לקבצים האחרים</h2><p>החיבור נעשה לפי מק״ט, אוטומטית</p></div>
+      <div class="box box-p" style="font-size:13.5px;line-height:1.8">
+        דוח ספנד: <b>${S.spend.length?esc(S.spendLabel)+' · '+nf0.format(S.spend.filter(r=>skuKey(r.sku)).length)+' תנועות עם מק״ט':'לא נטען'}</b>
+        ${S.spend.length&&!S.spend.some(r=>skuKey(r.sku))?' <span class="tag t-amb">אין בדוח עמודת מק״ט — לא ניתן לחשב הוצאה לפי פריט</span>':''}<br>
+        דוח הזמנות פתוחות: <b>${S.rows.length?esc(S.label)+' · '+nf0.format(S.rows.length)+' שורות':'לא נטען'}</b></div></div>
+    <div class="sec"><div class="sec-h"><h2>שערי המרה לחישוב מחיר בשקלים</h2><p>משמשים רק להערכת מחיר קנייה אחרון שנקבע במט״ח</p></div>
+      <div class="box box-p"><div class="fgrid">${Object.keys(FX_DEFAULT).filter(c=>c!=='ILS').map(c=>`<label><span class="flab">${c} → ₪</span>
+        <input type="text" inputmode="decimal" data-fx="${c}" value="${fx[c]}"></label>`).join('')}</div>
+        <button class="btn btn-sm btn-solid" id="fxSave" style="margin-top:10px">עדכון שערים</button></div></div>
+    <div class="sec"><div class="sec-h"><h2>עמודות שמזוהות</h2></div>
+      <div class="tscroll"><table><thead><tr><th style="cursor:default">שדה</th><th style="cursor:default">כותרות מזוהות</th></tr></thead><tbody>
+      ${ITEM_KEYS.map(k=>`<tr><td>${ITEM_LABEL[k]}</td><td style="color:var(--steel);font-size:12.5px">${esc(ITEM_ALIAS[k].join(' · '))}</td></tr>`).join('')}
+      </tbody></table></div></div>`;
+  const d=$('#idrop');
+  $('#ipick').onclick=()=>$('#ifile').click();
+  ['dragenter','dragover'].forEach(ev=>d.addEventListener(ev,e=>{e.preventDefault();d.classList.add('hot');}));
+  ['dragleave','drop'].forEach(ev=>d.addEventListener(ev,e=>{e.preventDefault();d.classList.remove('hot');}));
+  d.addEventListener('drop',e=>{e.stopPropagation();if(e.dataTransfer.files[0])readItemFile(e.dataTransfer.files[0]);});
+  $('#fxSave').onclick=()=>{const o={};$('#p-iload').querySelectorAll('[data-fx]').forEach(i=>{const v=toNum(i.value);if(v)o[i.dataset.fx]=v;});
+    store('ifx',o);refreshItemLinks();toast('שערי ההמרה עודכנו');render();};
+}
+function saveItems(){
+  S.itemBusy='שומר במסד הנתונים…';
+  return packItems(S.items).then(z=>{store('itemdata',{z,label:S.itemLabel,n:S.items.length});S.itemBusy='';})
+    .catch(()=>{S.itemBusy='';toast('הקובץ נטען אך לא נשמר');});
+}
+function readItemFile(file){
+  toast('קורא את קובץ הפריטים…');
+  const fr=new FileReader();
+  fr.onerror=()=>toast('לא ניתן לקרוא את הקובץ');
+  fr.onload=e=>{
+    try{
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:"array",cellDates:true});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const aoa=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null,blankrows:false});
+      if(!aoa.length)throw new Error('הגיליון ריק');
+      let hi=0,best=-1;
+      for(let i=0;i<Math.min(10,aoa.length);i++){const n=Object.keys(mapHeadersWith(aoa[i],ITEM_ALIAS)).length;if(n>best){best=n;hi=i;}}
+      /* התאמה מדויקת בלבד — בקובץ יש עשרות עמודות עם שמות דומים */
+      const hn=aoa[hi].map(h=>norm(h)),map={};
+      ITEM_KEYS.forEach(k=>{for(const a of ITEM_ALIAS[k]){const i=hn.indexOf(norm(a));if(i>-1){map[k]=i;break;}}});
+      if(map.sku===undefined||map.desc===undefined)throw new Error('לא נמצאו עמודות מק״ט ותיאור. ודאו שזהו קובץ כרטיס פריט.');
+      const out=[];
+      for(let i=hi+1;i<aoa.length;i++){
+        const a=aoa[i];if(!a)continue;const o={};
+        for(const k in map){const v=a[map[k]];o[k]=ITEM_DATE.indexOf(k)>-1?toDate(v):ITEM_NUM.indexOf(k)>-1?(toNum(v)||null):clean(v);}
+        if(!o.sku)continue;out.push(o);
+      }
+      if(!out.length)throw new Error('לא נמצאו פריטים');
+      S.items=deriveItems(out);S.itemLabel=file.name.replace(/\.(xlsx|xls|csv)$/i,'');S.itemSel=null;
+      S.itd=newItemFilters();S.itf=newItemFilters();S.limit=150;S.mode='item';S.tab='iover';
+      toast('נטענו '+nf0.format(out.length)+' פריטים · '+(ITEM_KEYS.length-Object.keys(map).length?'עמודות שלא זוהו: '+(ITEM_KEYS.length-Object.keys(map).length):'כל העמודות זוהו'),5000);
+      render();
+      saveItems().then(()=>{if(S.tab==='iload')render();});
+    }catch(err){toast('שגיאה: '+(err.message||'הקובץ לא נקרא'),6000);}
+  };
+  fr.readAsArrayBuffer(file);
+}
+function renderItemMeta(){
+  const r=S.items;
+  if(!r.length){
+    $('#meta').innerHTML=S.itemBusy?esc(S.itemBusy):'קובץ הפריטים טרם נטען · גררו אותו ללשונית הטעינה';
+    $('#strip').innerHTML=`<div class="gauge" style="flex-basis:100%"><div class="gauge-k">מצב המערכת</div>
+      <div class="gauge-v" style="font-size:22px">${S.itemBusy?esc(S.itemBusy):'ממתין לטעינת קובץ כרטיס פריט'}</div>
+      <div class="gauge-s">ייצוא כרטיסי הפריטים מ-Priority</div></div>`;
+    return;
+  }
+  const rows=itemFiltered(),sp=hasItemSpend();
+  $('#meta').innerHTML=`קובץ פריטים: <b>${esc(S.itemLabel)}</b><br>${nf0.format(r.length)} פריטים · ${nf0.format(new Set(r.map(x=>x.supKey).filter(Boolean)).size)} ספקים מועדפים${sp?' · מחובר לדוח הספנד':''}`;
+  $('#strip').innerHTML=[
+    {k:'פריטים בתצוגה',v:nf0.format(rows.length),s:nf0.format(rows.filter(x=>x.status==='פעיל').length)+' פעילים'},
+    {k:'ללא ספק מועדף',v:nf0.format(rows.filter(x=>!x.supKey).length),s:'מתוכם '+nf0.format(rows.filter(x=>!x.supKey&&x.status==='פעיל').length)+' פעילים',c:'warn'},
+    {k:'רדומים 3+ שנים',v:nf0.format(rows.filter(x=>x.dormant).length),s:'ללא תנועה במפעל'},
+    sp?{k:'הוצאה בפועל',v:short(rows.reduce((s,x)=>s+x.spend,0)),s:nf0.format(rows.filter(x=>x.spend).length)+' מק״טים'}
+      :{k:'עם מחיר קנייה',v:nf0.format(rows.filter(x=>x.lastPrice).length),s:'מחיר אחרון מחשבונית'},
+    {k:'הזמנות פתוחות',v:short(rows.reduce((s,x)=>s+x.openPO,0)),s:nf0.format(rows.filter(x=>x.openPO).length)+' מק״טים'}
+  ].map(x=>`<div class="gauge ${x.c||''}"><div class="gauge-k">${x.k}</div><div class="gauge-v">${x.v}</div><div class="gauge-s">${x.s}</div></div>`).join('');
+}
+
 /* ---------- tabs & shell ---------- */
 const TABS=[
   {id:'track',m:'po',t:'מעקב ובקרה',r:renderTrack,n:()=>filtered().length},
@@ -1960,7 +2505,13 @@ const TABS=[
   {id:'pyoy',m:'spend',t:'השוואת שנים',r:renderSpendYoY},
   {id:'ppivot',m:'spend',t:'דוחות תקופתיים',r:renderSpendPivot},
   {id:'pins',m:'spend',t:'תובנות והמלצות',r:renderSpendInsights},
-  {id:'pload',m:'spend',t:'טעינת דוח ספנד',r:renderSpendLoad}
+  {id:'pload',m:'spend',t:'טעינת דוח ספנד',r:renderSpendLoad},
+  {id:'iover',m:'item',t:'סקירת פריטים',r:renderItemOverview,n:()=>itemFiltered().length},
+  {id:'ispend',m:'item',t:'הוצאות לפי מק״ט',r:renderItemSpend},
+  {id:'isup',m:'item',t:'ספקים',r:renderItemSup},
+  {id:'icat',m:'item',t:'קטלוג פריטים',r:renderItemCatalog},
+  {id:'iins',m:'item',t:'תובנות והמלצות',r:renderItemInsights,n:()=>itemRecs(itemFiltered()).length},
+  {id:'iload',m:'item',t:'טעינת קובץ פריטים',r:renderItemLoad}
 ];
 const modeTabs=()=>TABS.filter(t=>t.m===S.mode);
 function renderRail(){
@@ -1974,6 +2525,7 @@ function bindRefresh(){
     b.onclick=()=>{
       if(S.mode==='sup'){applySupFilters();toast('תצוגת הספקים רועננה');}
       else if(S.mode==='spend'){applySpendFilters();toast('תצוגת הספנד רועננה');}
+      else if(S.mode==='item'){applyItemFilters();toast('תצוגת הפריטים רועננה');}
       else{applyFilters();toast(S.f.buyers.size?'הוצג מחדש עבור '+S.f.buyers.size+' קניינים':'התצוגה רועננה');}
     };
   });
@@ -1983,9 +2535,13 @@ function render(){
   if(S.mode==='po'&&!S.rows.length)S.tab='load';
   if(S.mode==='sup'&&!S.sup.length)S.tab='sload';
   if(S.mode==='spend'&&!S.spend.length)S.tab='pload';
+  if(S.mode==='item'&&!S.items.length)S.tab='iload';
+  if(S.items.length&&(S._lnkS!==S.spend||S._lnkR!==S.rows)){S._lnkS=S.spend;S._lnkR=S.rows;refreshItemLinks();}
   renderMeta();renderRail();
-  $('#btnLoad').textContent=S.mode==='sup'?'טעינת קובץ ספקים':S.mode==='spend'?'טעינת דוח ספנד':'טעינת דוח הזמנות';
-  $('#footMeta').textContent=S.mode==='sup'
+  $('#btnLoad').textContent=S.mode==='sup'?'טעינת קובץ ספקים':S.mode==='spend'?'טעינת דוח ספנד':S.mode==='item'?'טעינת קובץ פריטים':'טעינת דוח הזמנות';
+  $('#footMeta').textContent=S.mode==='item'
+    ? (S.items.length?S.itemLabel+' · '+nf0.format(S.items.length)+' פריטים':'קובץ פריטים טרם נטען')+' · '+dstr(todayISO())
+    : S.mode==='sup'
     ? S.supLabel+' · '+nf0.format(S.sup.length)+' ספקים · עודכן '+dstr(todayISO())
     : S.mode==='spend'
     ? (S.spend.length?S.spendLabel+' · '+nf0.format(S.spend.length)+' תנועות':'דוח ספנד טרם נטען')+' · '+dstr(todayISO())
@@ -2001,6 +2557,11 @@ S.sup=deriveSup(fromSeedSup());
 S.supLabel=seedSup.source;
 S.sf=newSupFilters();S.sd=newSupFilters();
 S.pf=newSpendFilters();S.pd=newSpendFilters();
+S.itf=newItemFilters();S.itd=newItemFilters();
+const savedItems=store('itemdata');
+if(savedItems&&savedItems.z){S.itemBusy='טוען את קובץ הפריטים…';
+  unpackItems(savedItems.z).then(rows=>{S.items=deriveItems(rows);S.itemLabel=savedItems.label;S._lnkS=S.spend;S._lnkR=S.rows;})
+    .catch(()=>toast('לא ניתן לפתוח את קובץ הפריטים השמור')).then(()=>{S.itemBusy='';if(S.mode==='item')render();});}
 const savedSpend=store('spenddata');
 if(savedSpend&&savedSpend.rows&&savedSpend.rows.length){S.spend=deriveSpend(savedSpend.rows);S.spendLabel=savedSpend.label;}
 const savedSup=store('supdata');
@@ -2008,7 +2569,8 @@ if(savedSup&&savedSup.rows&&savedSup.rows.length){S.sup=deriveSup(savedSup.rows)
 
 $('#modes').onclick=e=>{const b=e.target.closest('.mode');if(!b)return;
   S.mode=b.dataset.m;S.tab=modeTabs()[0].id;S.limit=150;render();window.scrollTo({top:0,behavior:'smooth'});};
-$('#btnLoad').onclick=()=>$(S.mode==='sup'?'#sfile':S.mode==='spend'?'#pfile':'#file').click();
+$('#btnLoad').onclick=()=>$(S.mode==='sup'?'#sfile':S.mode==='spend'?'#pfile':S.mode==='item'?'#ifile':'#file').click();
+$('#ifile').onchange=e=>{if(e.target.files[0])readItemFile(e.target.files[0]);e.target.value='';};
 $('#file').onchange=e=>{if(e.target.files[0])readFile(e.target.files[0]);e.target.value='';};
 $('#sfile').onchange=e=>{if(e.target.files[0])readSupFile(e.target.files[0]);e.target.value='';};
 $('#pfile').onchange=e=>{if(e.target.files[0])readSpendFile(e.target.files[0]);e.target.value='';};
@@ -2026,7 +2588,7 @@ $('#btnTheme').onclick=()=>{
 };
 ['dragover','drop'].forEach(ev=>document.addEventListener(ev,e=>{
   if(e.dataTransfer&&[...e.dataTransfer.types].indexOf('Files')>-1){e.preventDefault();
-    if(ev==='drop'&&e.dataTransfer.files[0])(S.mode==='sup'?readSupFile:S.mode==='spend'?readSpendFile:readFile)(e.dataTransfer.files[0]);}
+    if(ev==='drop'&&e.dataTransfer.files[0])(S.mode==='sup'?readSupFile:S.mode==='spend'?readSpendFile:S.mode==='item'?readItemFile:readFile)(e.dataTransfer.files[0]);}
 }));
 
 render();
@@ -2038,7 +2600,7 @@ render();
    כל שמירה נשלחת גם לשרת. בלי שרת (קובץ מקומי) — עובד מהדפדפן בלבד. */
 (function(){
 "use strict";
-const API='/api/store', SYNC=['data','supdata','spenddata','supmeta','crit','ok'];
+const API='/api/store', SYNC=['data','supdata','spenddata','supmeta','crit','ok','itemdata'];
 const ls={get:k=>{try{return localStorage.getItem(k);}catch(e){return null;}},
           set:(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}},
           del:k=>{try{localStorage.removeItem(k);}catch(e){}}};
