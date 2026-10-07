@@ -114,6 +114,8 @@ export async function callNvidia(prompt, override) {
       temperature: 0.2,
       top_p: 0.9,
       max_tokens: 4096,
+      // מתג רשמי של NIM לכיבוי חשיבה. מודלים שלא מכירים אותו מתעלמים ממנו.
+      chat_template_kwargs: { thinking: false },
       messages: [
         // "detailed thinking off" מכבה את שרשרת החשיבה במשפחת Nemotron.
         // בלעדיה המודל מייצר אלפי טוקני הגיון וחורג ממגבלת הזמן של הפונקציה.
@@ -124,7 +126,28 @@ export async function callNvidia(prompt, override) {
   }));
   if (!r.ok) throw new Error(`nvidia ${r.status}: ${(await r.text()).slice(0, 400)}`);
   const d = await r.json();
-  return d.choices?.[0]?.message?.content || '';
+  const msg = d.choices?.[0]?.message || {};
+  // מודלי חשיבה עלולים להחזיר את הפלט תחת reasoning_content ולהשאיר content ריק
+  const out = msg.content || msg.reasoning_content || '';
+  if (!out) {
+    throw new Error(`המודל החזיר תוכן ריק. שדות: ${Object.keys(msg).join(',') || 'אין'} · סיבת סיום: ${d.choices?.[0]?.finish_reason || 'לא ידועה'}`);
+  }
+  return out;
+}
+
+// אבחון: מחזיר את מבנה התשובה הגולמי כדי לראות לאן המודל כותב
+export async function nvidiaRaw(prompt, override) {
+  const model = override || process.env.NVIDIA_MODEL || 'nvidia/nemotron-3-super-120b-a12b';
+  const r = await fetch(`${NVIDIA_BASE}/chat/completions`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${process.env.NVIDIA_API_KEY}` },
+    body: JSON.stringify({ model, temperature: 0.2, max_tokens: 1200, messages: [{ role: 'user', content: prompt }] })
+  });
+  const body = await r.json().catch(() => ({}));
+  const msg = body.choices?.[0]?.message || {};
+  return { status: r.status, finish: body.choices?.[0]?.finish_reason, keys: Object.keys(msg),
+    contentLen: (msg.content || '').length, reasoningLen: (msg.reasoning_content || '').length,
+    content: (msg.content || '').slice(0, 300), reasoning: (msg.reasoning_content || '').slice(0, 300), usage: body.usage };
 }
 
 export async function nvidiaModels() {

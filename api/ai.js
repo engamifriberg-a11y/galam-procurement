@@ -6,7 +6,7 @@
 // התוצאה כבר מוכנה והמשתמש אינו ממתין כלל.
 import { hasDb, kvGet, kvSet } from './_lib/db.js';
 import { fetchNews } from './_lib/news.js';
-import { provider, runTask, callNvidia, nvidiaModels, chemicals, riskPromptGrounded } from './_lib/scan.js';
+import { provider, runTask, callNvidia, nvidiaRaw, nvidiaModels, chemicals, riskPromptGrounded } from './_lib/scan.js';
 
 const TTL_MS = 12 * 3600 * 1000;
 
@@ -37,6 +37,10 @@ export default async function handler(req, res) {
       const out = await callNvidia('החזר בדיוק את ה-JSON הזה ותו לא: {"ok":true}', req.query.model);
       return res.status(200).json({ step: 'ping', ms: Date.now() - t0, model: req.query.model || process.env.NVIDIA_MODEL, raw: out.slice(0, 400) });
     } catch (e) { return res.status(502).json({ step: 'ping', error: String(e.message), model: req.query.model || process.env.NVIDIA_MODEL }); }
+  }
+  if (req.query.step === 'raw') {
+    try { return res.status(200).json(await nvidiaRaw(req.query.q || 'מנה שלושה סיכונים בשרשרת אספקה של כימיקלים. החזר JSON: {"risks":["..."]}', req.query.model)); }
+    catch (e) { return res.status(502).json({ error: String(e.message) }); }
   }
   if (req.query.step === 'bench') {
     const t0 = Date.now();
