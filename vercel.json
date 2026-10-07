@@ -11,6 +11,9 @@
     },
     "api/cron/scan.js": {
       "maxDuration": 60
+    },
+    "api/backfill.js": {
+      "maxDuration": 120
     }
   },
   "crons": [

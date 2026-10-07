@@ -97,3 +97,60 @@ export async function collect(defs) {
   });
   return { points, failed };
 }
+
+
+/* ================= משיכת היסטוריה =================
+   צילום יומי בונה היסטוריה בקצב של נקודה ביום, ולכן בימים הראשונים כל
+   עמודות השינוי מראות אפס והתנודתיות ריקה. המקורות עצמם מחזיקים שנים
+   אחורה — צריך רק לבקש. זה ממלא את הסדרה בבת אחת. */
+
+async function yahooHistory(symbol, seriesId, range = '2y') {
+  const d = await j(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=${range}&interval=1d`);
+  const res = d.chart?.result?.[0];
+  const ts = res?.timestamp || [];
+  const close = res?.indicators?.quote?.[0]?.close || [];
+  const out = [];
+  for (let i = 0; i < ts.length; i++) {
+    if (close[i] == null || !Number.isFinite(close[i])) continue;
+    out.push({ series_id: seriesId, d: new Date(ts[i] * 1000).toISOString().slice(0, 10), value: close[i], source: 'Yahoo Finance', tier: 'A' });
+  }
+  if (!out.length) throw new Error(`yahoo history ריק עבור ${symbol}`);
+  return out;
+}
+
+async function frankfurterHistory(base, symbol, seriesId, invert = false) {
+  const from = new Date(Date.now() - 730 * 864e5).toISOString().slice(0, 10);
+  const d = await j(`https://api.frankfurter.dev/v1/${from}..?base=${base}&symbols=${symbol}`);
+  const out = [];
+  for (const [day, rates] of Object.entries(d.rates || {})) {
+    const v = rates[symbol];
+    if (!Number.isFinite(v)) continue;
+    out.push({ series_id: seriesId, d: day, value: invert ? 1 / v : v, source: 'ECB (היסטוריה)', tier: 'A' });
+  }
+  if (!out.length) throw new Error(`frankfurter history ריק עבור ${base}/${symbol}`);
+  return out;
+}
+
+const FX_HISTORY = {
+  'fx.usdils': () => frankfurterHistory('USD', 'ILS', 'fx.usdils'),
+  'fx.eurils': () => frankfurterHistory('EUR', 'ILS', 'fx.eurils'),
+  'fx.eurusd': () => frankfurterHistory('EUR', 'USD', 'fx.eurusd')
+};
+
+export async function backfill(defs, { range = '2y' } = {}) {
+  const jobs = [];
+  for (const def of defs) {
+    if (FX_HISTORY[def.id]) { jobs.push([def.id, FX_HISTORY[def.id]]); continue; }
+    if (def.provider === 'quote') {
+      const sym = (def.symbols || [])[1] || (def.symbols || [])[0];
+      if (sym) jobs.push([def.id, () => yahooHistory(sym, def.id, range)]);
+    }
+  }
+  const settled = await Promise.allSettled(jobs.map(([, fn]) => fn()));
+  const points = [], failed = [];
+  settled.forEach((r, i) => {
+    if (r.status === 'fulfilled') points.push(...r.value);
+    else failed.push({ name: jobs[i][0], error: String(r.reason?.message || r.reason) });
+  });
+  return { points, failed };
+}

@@ -329,7 +329,7 @@ async function runTaskWith(task, cfg) {
    חישבה ומנסח מהם קריאה לקניין. זה השימוש הבטוח: ניסוח, לא המצאה. */
 
 const GROUPS = {
-  paper:   { he: 'נייר ועיסת נייר', groups: ['paper'] },
+  paper:   { he: 'נייר', groups: ['paper'] },
   energy:  { he: 'אנרגיה ופלסטיקים', groups: ['energy', 'plastic'] },
   fx:      { he: 'שערי מטבע', groups: ['fx'] },
   freight: { he: 'הובלה', groups: ['freight'] }

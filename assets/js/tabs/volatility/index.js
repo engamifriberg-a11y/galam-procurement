@@ -8,7 +8,7 @@ import { riskView } from './risk-view.js';
 import { wireAiPanel } from './ai-panel.js';
 
 const SUBS = [
-  { id: 'paper', he: 'מחירי נייר ועיסה' },
+  { id: 'paper', he: 'מחירי נייר' },
   { id: 'energy', he: 'אנרגיה ופלסטיק' },
   { id: 'fx', he: 'שערי מטבע' },
   { id: 'freight', he: 'הובלה ימית' },
@@ -54,7 +54,7 @@ registerTab({
     const cfg = {
       paper: {
         aiTitle: 'קריאת שוק הנייר',
-        groups: ['paper'], title: 'מחירי נייר ועיסת נייר',
+        groups: ['paper'], title: 'מחירי נייר',
         lead: `<div><b>אין בורסת נייר עם API חינמי.</b> מחירי העיסה והקרטון מתפרסמים בדוחות של בתי תוכן
           כמו FOEX, RISI ו-EUWID, וחוזי העיסה נסחרים בבורסת שנגחאי. לכן הסדרות כאן מנוהלות: מזינים
           את הערך התקופתי והמערכת בונה את ההיסטוריה ומחשבת תנודתיות. אם תרכשו מנוי, מחברים אותו
