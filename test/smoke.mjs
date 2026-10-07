@@ -210,5 +210,18 @@ else {
   !/<button class="brow/.test(rh) ? pass('שורות הגרף אינן button') : fail('שורת גרף עטופה ב-button, המילוי ייעלם');
 }
 
+// מחלקות שמופיעות ב-HTML אך חסרות ב-CSS — זה מה שגרם לשדות להיערם
+{
+  const css = await readFile(join(ROOT, 'assets/css/app.css'), 'utf8');
+  const html = log.map(([, h]) => h).join(' ');
+  const used = new Set();
+  for (const m of html.matchAll(/class="([^"]+)"/g))
+    m[1].split(/\s+/).forEach(c => { if (c && !/^[a-z]+-[0-9]/.test(c)) used.add(c); });
+  const missing = [...used].filter(c => !css.includes('.' + c));
+  missing.length
+    ? fail(`מחלקות ללא עיצוב: ${missing.join(', ')}`)
+    : pass(`כל ${used.size} המחלקות בשימוש מעוצבות`);
+}
+
 console.log(process.exitCode ? '\nנכשל' : '\nעבר');
 process.exit(process.exitCode || 0);   // טיימרי העדכון האוטומטי מחזיקים את התהליך

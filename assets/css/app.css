@@ -185,3 +185,74 @@ footer b{font-weight:500; color:var(--ink2)}
   .head-top{padding:12px 16px 10px}
   .wrap{padding:0 14px}
 }
+
+/* ======================================================================
+   סרגל חיפוש וסינון, אריחים וטבלאות הצלבה.
+   המחלקות האלה היו בשימוש בקוד אך ללא הגדרה, ולכן השדות נערמו במדרגות
+   והאריחים התמוטטו לשורה אחת.
+   ====================================================================== */
+
+/* שורת החיפוש: בורר השדה בעמודה קבועה, התיבה תופסת את השאר */
+.search-row{display:grid; grid-template-columns:minmax(150px,200px) 1fr; gap:10px; padding:16px 18px 0; align-items:center}
+.search{position:relative; min-width:0}
+.search input{width:100%; padding:12px 14px; border:1px solid var(--line); border-radius:8px; background:var(--surface2)}
+.search input:focus{background:var(--surface); border-color:var(--accent); outline:none}
+
+/* רשת ולא flex: כל שדה בתא שווה, כך שהשורות נשארות מיושרות
+   במקום להיערם לפי אורך הטקסט בכל שדה */
+.filters{display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:12px; padding:14px 18px 16px}
+.f{display:flex; flex-direction:column; gap:5px; min-width:0}
+.f label{font-size:11.5px; color:var(--ink3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.f select{width:100%; min-width:0; padding:8px 11px; border:1px solid var(--line); border-radius:7px;
+  background:var(--surface); color:var(--ink); text-overflow:ellipsis}
+.f select:focus{border-color:var(--accent); outline:none}
+
+/* שורת הפעולות מתחת לסינון */
+.bar{display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:11px 18px;
+  border-top:1px solid var(--line2); border-bottom:1px solid var(--line2); background:var(--surface2); font-size:13.5px}
+.bar .count b{font-family:"Frank Ruhl Libre",Georgia,serif; font-size:18px; margin-inline-end:3px}
+.chips{display:flex; gap:7px; flex-wrap:wrap; margin-inline-start:auto; max-width:100%}
+.chip{display:inline-flex; align-items:center; gap:6px; background:var(--accent-soft); color:var(--accent);
+  border:0; border-radius:999px; padding:5px 12px; font-size:12.5px; cursor:pointer; max-width:280px}
+.chip b{font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.chip:hover{filter:brightness(.95)}
+
+/* אריחי הפילוח. חייבים להישאר div — בתוך button התוכן מתמוטט לשורה אחת */
+.tiles{display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:1px;
+  background:var(--line2); border-top:1px solid var(--line2)}
+.tile{background:var(--surface); padding:15px 16px; display:flex; flex-direction:column; gap:3px; min-width:0}
+.tile.click{cursor:pointer}
+.tile.click:hover{background:var(--accent-soft)}
+.tile b{display:block; font-family:"Frank Ruhl Libre",Georgia,serif; font-size:26px; line-height:1.1; font-weight:700}
+.tile span{display:block; font-size:13.5px; color:var(--ink2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.tile em{display:block; font-style:normal; font-size:12px; color:var(--ink3); margin-top:1px}
+.tile .mini{height:3px; background:var(--line2); margin-top:10px; border-radius:2px; overflow:hidden}
+.tile .mini i{display:block; height:100%; background:var(--accent)}
+
+.more{display:block; width:100%; padding:14px; background:var(--surface2); border:0;
+  border-top:1px solid var(--line2); cursor:pointer; color:var(--accent); font-size:13.5px}
+.more:hover{background:var(--accent-soft)}
+
+.mono{font-variant-numeric:tabular-nums; white-space:nowrap}
+thead th .ar{opacity:.5; font-size:10px}
+thead th[data-sort]{cursor:pointer}
+thead th[data-sort]:hover{color:var(--accent)}
+
+/* טבלת הצלבה */
+.matrix{font-size:12.5px; width:100%; border-collapse:collapse}
+.matrix th{position:static; padding:7px 8px; font-size:11.5px; color:var(--ink3);
+  border-bottom:1px solid var(--line); text-align:center; white-space:normal}
+.matrix th:first-child{text-align:start}
+.matrix td{padding:6px 8px; text-align:center; border-bottom:1px solid var(--line2)}
+.matrix td:first-child{text-align:start; color:var(--ink2); white-space:nowrap}
+.cell{display:block; border-radius:4px; padding:4px 0}
+
+@media(max-width:560px){
+  .search-row{grid-template-columns:1fr}
+  .filters{grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:10px}
+  .chips{margin-inline-start:0}
+  .tiles{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
+}
+
+.pill.off{color:var(--ink3); border-color:var(--line)}
+.search.plain input{padding-inline-start:14px}

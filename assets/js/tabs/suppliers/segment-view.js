@@ -22,10 +22,10 @@ export function segmentView(data) {
     <div class="tiles">${tally(rows, d => d.t).map(([k, n]) => {
       const sub = rows.filter(d => d.t === k);
       const risky = sub.filter(d => riskOf(d).code === 'high').length;
-      return `<button class="tile" data-jump="t" data-val="${esc(k)}">
+      return `<div class="tile click" data-jump="t" data-val="${esc(k)}" role="button" tabindex="0" title="${esc(k)}">
         <b>${nf(n, 0)}</b><span>${esc(k)}</span>
         <em>${sub.filter(d => d.act).length} פעילים${risky ? ` · ${risky} מסוכנים` : ''}</em>
-        <span class="mini"><i style="width:${n / rows.length * 100}%"></i></span></button>`;
+        <span class="mini"><i style="width:${(n / rows.length * 100).toFixed(1)}%"></i></span></div>`;
     }).join('')}</div>
   </div>
 
