@@ -100,20 +100,46 @@ export async function callAnthropic(prompt) {
   return (d.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
 }
 
+/* גוגל נמצאת במעבר בין שני סוגי מפתחות: הישן AIza נשלח בפרמטר key בכתובת,
+   והחדש AQ. הוא מפתח הזדהות שנשלח בכותרת. אנחנו מנסים את השיטה שמתאימה
+   לפורמט, ואם היא נדחית מנסים את השנייה — כך שני הסוגים עובדים. */
+export async function geminiFetch(model, body, key, signal) {
+  const base = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+  const attempts = key.startsWith('AQ.')
+    ? [['bearer', { authorization: `Bearer ${key}` }], ['header', { 'x-goog-api-key': key }], ['query', null]]
+    : [['query', null], ['header', { 'x-goog-api-key': key }], ['bearer', { authorization: `Bearer ${key}` }]];
+
+  let last = null;
+  for (const [mode, extra] of attempts) {
+    const url = mode === 'query' ? `${base}?key=${encodeURIComponent(key)}` : base;
+    const r = await fetch(url, {
+      method: 'POST', signal,
+      headers: { 'content-type': 'application/json', ...(extra || {}) },
+      body: JSON.stringify(body)
+    });
+    if (r.ok) return { r, mode };
+    last = { status: r.status, text: (await r.text()).slice(0, 220), mode };
+    if (r.status !== 400 && r.status !== 401 && r.status !== 403) break;  // לא בעיית הזדהות
+  }
+  const err = new Error(`gemini ${last.status} (${last.mode}): ${last.text}`);
+  err.detail = last;
+  throw err;
+}
+
 export async function callGemini(prompt, cfg = {}) {
   const model = cfg.model || process.env.GEMINI_MODEL || 'gemini-2.5-flash';
   const key = cfg.key || process.env.GEMINI_API_KEY;
+  if (!key) throw new Error('אין מפתח Gemini');
   const body = { contents: [{ parts: [{ text: prompt }] }] };
   if (cfg.search !== false) body.tools = [{ google_search: {} }];
-  const r = await withTimeout(52000, 'Gemini', signal => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
-    method: 'POST', signal, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body)
-  }));
-  if (!r.ok) throw new Error(`gemini ${r.status}: ${(await r.text()).slice(0, 300)}`);
+
+  const { r } = await withTimeout(52000, 'Gemini', signal => geminiFetch(model, body, key, signal));
   const d = await r.json();
   const out = (d.candidates?.[0]?.content?.parts || []).map(p => p.text).filter(Boolean).join('\n');
   if (!out) throw new Error(`Gemini החזיר תוכן ריק. סיבת סיום: ${d.candidates?.[0]?.finishReason || 'לא ידועה'}`);
   return out;
 }
+
 
 // NVIDIA NIM — תואם OpenAI
 export async function callNvidia(prompt, override, opts = {}) {

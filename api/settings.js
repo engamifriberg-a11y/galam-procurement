@@ -6,7 +6,7 @@
 // להחליף אותו ולשרוף את המכסה. לכן אם מוגדר ADMIN_CODE במשתני הסביבה —
 // הוא נדרש לכל שינוי. בלעדיו המסך מצהיר במפורש שהוא פתוח.
 import { hasDb, kvGet, kvSet } from './_lib/db.js';
-import { aiConfig } from './_lib/scan.js';
+import { aiConfig, geminiFetch } from './_lib/scan.js';
 
 const KEY = 'settings:ai';
 const mask = k => !k ? null : k.slice(0, 6) + '…' + k.slice(-4);
@@ -44,13 +44,11 @@ export default async function handler(req, res) {
 
       // בדיקה אמיתית מול Google לפני שמירה, כדי לא לשמור מפתח שבור
       const model = String(body.geminiModel || 'gemini-2.5-flash').trim();
-      const probe = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${k}`, {
-        method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: 'השב במילה אחת: בסדר' }] }] })
-      });
-      if (!probe.ok) {
-        const txt = (await probe.text()).slice(0, 200);
-        return res.status(400).json({ error: 'key_rejected', message: `Google דחה את המפתח (${probe.status}). ${txt}` });
+      try {
+        await geminiFetch(model, { contents: [{ parts: [{ text: 'השב במילה אחת: בסדר' }] }] }, k);
+      } catch (e) {
+        return res.status(400).json({ error: 'key_rejected',
+          message: `Google דחה את המפתח. ${String(e.message)}${k.startsWith('AQ.') ? ' — מפתחות בפורמט AQ. אינם נתמכים כרגע בנקודת הקצה הזו. צור מפתח בפורמט AIza.' : ''}` });
       }
 
       await kvSet(KEY, { geminiKey: k, geminiModel: model, updatedAt: new Date().toISOString() });
