@@ -4,6 +4,7 @@
 import { hasDb, putPoints } from './_lib/db.js';
 import { collect } from './_lib/providers.js';
 import { catalog, buildSeries } from './_lib/market.js';
+import { fred } from './_lib/providers.js';
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
@@ -20,6 +21,21 @@ export default async function handler(req, res) {
       const d = /^\d{4}-\d{2}-\d{2}$/.test(body.date || '') ? body.date : new Date().toISOString().slice(0, 10);
       await putPoints([{ series_id: def.id, d, value, source: body.source || 'הזנה ידנית', tier: def.tier }]);
       return res.status(200).json({ ok: true, series: def.id, d, value });
+    }
+
+    // אבחון ממוקד לספק אחד, כדי לראות את השגיאה עצמה
+    if (req.query.probe === 'fred') {
+      const out = [];
+      for (const def of defs.filter(d => d.provider === 'fred')) {
+        const t0 = Date.now();
+        try {
+          const pts = await fred(def.fredId, def.id, { years: 1 });
+          out.push({ id: def.id, fredId: def.fredId, ok: true, ms: Date.now() - t0, n: pts.length, last: pts[pts.length - 1] });
+        } catch (e) {
+          out.push({ id: def.id, fredId: def.fredId, ok: false, ms: Date.now() - t0, error: String(e.message || e) });
+        }
+      }
+      return res.status(200).json({ probe: 'fred', out });
     }
 
     if (req.method !== 'GET') { res.setHeader('Allow', 'GET, PUT'); return res.status(405).json({ error: 'method not allowed' }); }
