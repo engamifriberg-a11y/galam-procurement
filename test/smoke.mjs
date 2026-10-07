@@ -70,7 +70,7 @@ globalThis.fetch = async (url) => {
     : u.startsWith('/api/prices') ? {}
     : u.includes('task=brief') ? { group: 'x', he: 'x', text: 'קריאת בדיקה.', basedOn: 3, missing: 1, at: new Date().toISOString(), provider: 'nvidia' }
     : u.includes('task=pitch') ? { key: '1', item: 'x', rec: 'ask', text: 'טיעון בדיקה.', at: new Date().toISOString() }
-    : u.startsWith('/api/settings') ? { protected: false, saved: {}, active: { provider: 'nvidia', model: 'openai/gpt-oss-20b', search: false, source: 'סביבה' }, env: { nvidia: true, gemini: false, anthropic: false } }
+    : u.startsWith('/api/settings') ? { protected: false, saved: {}, search: { engine: 'Google News RSS', source: 'ברירת מחדל' }, active: { provider: 'nvidia', model: 'openai/gpt-oss-20b', search: false, source: 'סביבה' }, env: { tavily: false, nvidia: true, gemini: false, anthropic: false } }
     : u.includes('task=quote') ? { group: 'freight', asked: 8, quotes: [] }
     : u.startsWith('/api/analysis') ? { window: 'd90', series: API_MARKET.series, rows: [], modes: {} }
     : u.startsWith('/api/ai') ? (AI_OK ? AI_PAYLOAD : { error: 'no_ai_key', message: 'test' })
@@ -176,6 +176,7 @@ else {
   const h = log.filter(([id]) => id === '#settings-view').map(([, x]) => x).join('\n');
   h.includes('id="gk"') ? pass('לשונית הגדרות: שדה מפתח Gemini') : fail('לשונית הגדרות: שדה חסר');
   h.includes('ADMIN_CODE') ? pass('לשונית הגדרות: אזהרת אבטחה מוצגת') : fail('לשונית הגדרות: אזהרה חסרה');
+  h.includes('id="tk"') ? pass('לשונית הגדרות: שדה מפתח Tavily') : fail('לשונית הגדרות: שדה Tavily חסר');
 }
 
 console.log(process.exitCode ? '\nנכשל' : '\nעבר');

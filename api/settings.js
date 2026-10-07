@@ -7,6 +7,7 @@
 // הוא נדרש לכל שינוי. בלעדיו המסך מצהיר במפורש שהוא פתוח.
 import { hasDb, kvGet, kvSet } from './_lib/db.js';
 import { aiConfig, geminiFetch } from './_lib/scan.js';
+import { searchKey, tavily } from './_lib/search.js';
 
 const KEY = 'settings:ai';
 const mask = k => !k ? null : k.slice(0, 6) + '…' + k.slice(-4);
@@ -22,11 +23,14 @@ export default async function handler(req, res) {
     if (req.method === 'GET') {
       const saved = await kvGet(KEY) || {};
       const cfg = await aiConfig();
+      const sk = await searchKey();
       return res.status(200).json({
         protected: Boolean(adminCode),
-        saved: { geminiKey: mask(saved.geminiKey), geminiModel: saved.geminiModel || null, updatedAt: saved.updatedAt || null },
+        search: sk ? { engine: 'Tavily', source: sk.source } : { engine: 'Google News RSS', source: 'ברירת מחדל' },
+        saved: { geminiKey: mask(saved.geminiKey), geminiModel: saved.geminiModel || null, tavilyKey: mask(saved.tavilyKey), updatedAt: saved.updatedAt || null },
         active: cfg ? { provider: cfg.prov, model: cfg.model, search: cfg.search, source: cfg.source } : null,
         env: {
+          tavily: Boolean(process.env.TAVILY_API_KEY),
           nvidia: Boolean(process.env.NVIDIA_API_KEY),
           gemini: Boolean(process.env.GEMINI_API_KEY),
           anthropic: Boolean(process.env.ANTHROPIC_API_KEY)
@@ -36,6 +40,19 @@ export default async function handler(req, res) {
 
     if (adminCode && body.code !== adminCode) {
       return res.status(401).json({ error: 'bad_code', message: 'קוד ניהול שגוי.' });
+    }
+
+    if (req.method === 'PUT' && body.tavilyKey !== undefined) {
+      const tk = String(body.tavilyKey || '').trim();
+      if (!tk || tk.length < 20) return res.status(400).json({ error: 'מפתח Tavily לא תקין' });
+      try {
+        await tavily('test', { key: tk, max: 1, topic: 'general' });
+      } catch (e) {
+        return res.status(400).json({ error: 'key_rejected', message: `Tavily דחתה את המפתח. ${String(e.message)}` });
+      }
+      const cur = await kvGet(KEY) || {};
+      await kvSet(KEY, { ...cur, tavilyKey: tk, updatedAt: new Date().toISOString() });
+      return res.status(200).json({ ok: true, saved: { tavilyKey: mask(tk) }, search: { engine: 'Tavily', source: 'ממשק' } });
     }
 
     if (req.method === 'PUT') {

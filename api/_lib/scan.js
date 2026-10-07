@@ -2,6 +2,7 @@
 import { readFile } from 'node:fs/promises';
 import { hasDb, kvGet, kvSet } from './db.js';
 import { fetchNews, digest } from './news.js';
+import { gatherEvidence, searchKey, findIndexValue, tavily } from './search.js';
 import { analyse } from './analysis.js';
 import { catalog as catalogSeries } from './market.js';
 
@@ -75,10 +76,13 @@ export async function aiConfig() {
 
 const JSON_SHAPE = `{"asOf":"YYYY-MM-DD","overall":"calm|watch|strained","summary":"שתיים עד שלוש שורות בעברית","alerts":[{"chemical":"שם הכימיקל","severity":"low|medium|high","horizon":"0-3m|3-6m|6-12m","israelImpact":"יש|מוגבל|אין","headline":"כותרת קצרה בעברית","detail":"שתיים עד ארבע שורות בעברית","action":"המלצה אופרטיבית לקניין בעברית","refs":[מספרי פריטים מהרשימה]}]}`;
 
-export function riskPromptGrounded(items, news) {
-  return `כותרות חדשות אמיתיות, ממוספרות:
+export function riskPromptGrounded(items, news, rich) {
+  const list = rich
+    ? news.map(n => `[${n.i}] ${n.date} · ${n.source} · ${n.title}\n     ${n.content}`).join('\n')
+    : digest(news);
+  return `${rich ? 'ממצאי חיפוש אמיתיים, ממוספרים, עם תמצית תוכן' : 'כותרות חדשות אמיתיות, ממוספרות'}:
 
-${digest(news)}
+${list}
 
 כימיקלים שגלעם רוכשת בישראל:
 ${items.map(i => i.en).join(', ')}
@@ -270,11 +274,11 @@ async function runTaskWith(task, cfg) {
     prompt = trendPrompt(items);
   } else if (!cfg.search) {
     // ספק בלי חיפוש מובנה — חייב עוגן כותרות
-    const news = await fetchNews({ perQuery: 5, limit: 18 });
-    if (!news.items.length) throw new Error('no_news: לא התקבלו כותרות. בלי עוגן אמיתי המודל לא מורץ.');
-    grounding = { source: 'Google News RSS', items: news.items.length, queries: news.queries, failed: news.failed };
-    newsIndex = news.items;
-    prompt = riskPromptGrounded(items, news.items);
+    const ev = await gatherEvidence({ limit: 18 });
+    if (!ev.items.length) throw new Error('no_news: לא התקבלו ממצאים. בלי עוגן אמיתי המודל לא מורץ.');
+    grounding = { source: ev.engine, items: ev.items.length, queries: ev.queries, failed: ev.failed, rich: ev.rich };
+    newsIndex = ev.items;
+    prompt = riskPromptGrounded(items, ev.items, ev.rich);
   } else {
     prompt = riskPromptSearch(items);
   }
@@ -408,7 +412,8 @@ export async function callByProvider(prompt, { plain = true, search } = {}) {
 export async function quoteGroup(groupKey) {
   const cfg = await aiConfig();
   if (!cfg) throw new Error('no_ai_key');
-  if (!cfg.search) throw new Error('no_search: הספק הנוכחי אינו יודע לחפש ברשת. יש להזין מפתח Gemini.');
+  const sk = await searchKey();
+  if (!cfg.search && !sk) throw new Error('no_search: אין מנוע חיפוש. הוסף מפתח Tavily בהגדרות, או מפתח Gemini.');
 
   const defs = await catalogSeries();
   const wanted = (GROUPS[groupKey]?.groups || [groupKey]);
@@ -429,7 +434,25 @@ ${list.map(d => `- ${d.id} | ${d.he} | יחידה: ${d.unit}${d.note ? ` | ${d.n
 4. confidence נמוך אם הערך ישן מחודש או אם המקור משני.
 בלי טקסט מחוץ ל-JSON.`;
 
-  const text = await callGemini(prompt, { ...cfg, search: true });
+  // עם Tavily מביאים קודם ממצאים אמיתיים ונותנים למודל רק לחלץ מהם
+  let evidence = '';
+  if (sk) {
+    const hits = await Promise.allSettled(list.slice(0, 8).map(d => findIndexValue(d, sk.key)));
+    const lines = [];
+    hits.forEach((h, i) => {
+      if (h.status !== 'fulfilled') return;
+      for (const x of h.value.slice(0, 3)) lines.push(`${list[i].id} | ${x.date || 'ללא תאריך'} | ${x.source} | ${x.title} | ${x.content} | ${x.url}`);
+    });
+    evidence = lines.join('\n');
+  }
+
+  const fullPrompt = evidence
+    ? `${prompt}\n\nממצאי חיפוש אמיתיים. חלץ ערכים מהם בלבד, ואל תוסיף ערך שאינו מופיע כאן:\n${evidence}`
+    : prompt;
+
+  const text = sk && !cfg.search
+    ? await callNvidia(fullPrompt, cfg.model)
+    : await callGemini(fullPrompt, { ...cfg, search: !sk });
   const data = extractJson(text);
   const byId = new Map(list.map(d => [d.id, d]));
   const quotes = (Array.isArray(data.quotes) ? data.quotes : [])

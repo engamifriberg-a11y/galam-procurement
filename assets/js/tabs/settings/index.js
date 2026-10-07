@@ -59,6 +59,24 @@ registerTab({
     </div>
 
     <div class="panel">
+      <div class="ph"><h2>מנוע החיפוש</h2><p>מה מזין את המודל בעובדות אמיתיות</p></div>
+      <div class="pb">
+        <p style="margin:0 0 10px">פעיל כעת: <b>${esc(s.search?.engine || '—')}</b> · ${esc(s.search?.source || '')}</p>
+        <div class="inline-form" style="margin-bottom:10px">
+          <input class="inp" id="tk" type="password" placeholder="${s.saved.tavilyKey ? 'שמור: ' + esc(s.saved.tavilyKey) : 'הדבק מפתח Tavily'}"
+                 style="width:330px;text-align:start" autocomplete="off">
+          ${s.protected ? '<input class="inp" id="code2" type="password" placeholder="קוד ניהול" style="width:130px;text-align:start">' : ''}
+          <button class="btn primary" id="savet">בדוק ושמור</button>
+        </div>
+        <p class="note" id="tmsg" style="margin:0">
+          בלי מפתח המערכת מסתמכת על כותרות בלבד מ-Google News RSS. Tavily מחזירה גם תמצית תוכן
+          מגוף הכתבה, כך שהמודל מסווג לפי מה שכתוב ולא לפי ניחוש מהכותרת.
+          1,000 חיפושים בחודש בחינם, בלי כרטיס אשראי — <a href="https://app.tavily.com/home" target="_blank" rel="noopener">tavily.com</a>.
+        </p>
+      </div>
+    </div>
+
+    <div class="panel">
       <div class="ph"><h2>מה משתנה עם Gemini</h2></div>
       <div class="pb">
         <p style="margin:0 0 8px">בלשוניות הנייר, האנרגיה וההובלה נפתח כפתור <b>שלוף ערכים מהרשת</b>.
@@ -84,6 +102,18 @@ registerTab({
       clearCache();
       msg('המפתח נבדק ונשמר. מנוע ה-AI הוחלף ל-Gemini עם חיפוש ברשת.');
       setTimeout(() => this.render(view, {}), 900);
+    };
+
+    const saveT = $('#savet');
+    if (saveT) saveT.onclick = async () => {
+      const el = $('#tmsg');
+      const key = ($('#tk')?.value || '').trim();
+      if (!key) { if (el) el.textContent = 'לא הוזן מפתח.'; return; }
+      saveT.disabled = true; saveT.textContent = 'בודק…';
+      const r3 = await send('/api/settings', 'PUT', { tavilyKey: key, code: $('#code2')?.value || undefined });
+      saveT.disabled = false; saveT.textContent = 'בדוק ושמור';
+      if (el) el.textContent = r3.ok ? 'המפתח נבדק ונשמר. מנוע החיפוש הוחלף ל-Tavily.' : (r3.body?.message || 'השמירה נכשלה.');
+      if (r3.ok) { clearCache(); setTimeout(() => this.render(view, {}), 900); }
     };
 
     const del = $('#del');
