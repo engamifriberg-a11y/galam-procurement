@@ -110,8 +110,8 @@ async function callGemini(prompt) {
 }
 
 // NVIDIA NIM — תואם OpenAI
-async function callNvidia(prompt) {
-  const model = process.env.NVIDIA_MODEL || 'meta/llama-3.3-70b-instruct';
+async function callNvidia(prompt, override) {
+  const model = override || process.env.NVIDIA_MODEL || 'nvidia/llama-3.1-nemotron-70b-instruct';
   const r = await withTimeout(38000, 'NVIDIA', signal => fetch(`${NVIDIA_BASE}/chat/completions`, {
     method: 'POST',
     signal,
@@ -175,8 +175,8 @@ export default async function handler(req, res) {
   if (req.query.step === 'ping') {
     try {
       const t0 = Date.now();
-      const out = await callNvidia('החזר בדיוק את ה-JSON הזה ותו לא: {"ok":true}');
-      return res.status(200).json({ step: 'ping', ms: Date.now() - t0, model: process.env.NVIDIA_MODEL, raw: out.slice(0, 400) });
+      const out = await callNvidia('החזר בדיוק את ה-JSON הזה ותו לא: {"ok":true}', req.query.model);
+      return res.status(200).json({ step: 'ping', ms: Date.now() - t0, model: req.query.model || process.env.NVIDIA_MODEL, raw: out.slice(0, 400) });
     } catch (e) { return res.status(502).json({ step: 'ping', error: String(e.message), model: process.env.NVIDIA_MODEL }); }
   }
 
@@ -188,13 +188,13 @@ export default async function handler(req, res) {
       const tNews = Date.now() - t0;
       const prompt = riskPromptGrounded(await chemicals(), news.items);
       const t1 = Date.now();
-      const out = await callNvidia(prompt);
-      const r = { step: 'bench', model: process.env.NVIDIA_MODEL, newsMs: tNews,
+      const out = await callNvidia(prompt, req.query.model);
+      const r = { step: 'bench', model: req.query.model || process.env.NVIDIA_MODEL, newsMs: tNews,
         modelMs: Date.now() - t1, promptChars: prompt.length, outChars: out.length, head: out.slice(0, 250), tail: out.slice(-250) };
       if (hasDb()) { try { await kvSet('ai:lastrun', r); } catch {} }
       return res.status(200).json(r);
     } catch (e) {
-      const r = { step: 'bench', model: process.env.NVIDIA_MODEL, totalMs: Date.now() - t0, error: String(e.message) };
+      const r = { step: 'bench', model: req.query.model || process.env.NVIDIA_MODEL, totalMs: Date.now() - t0, error: String(e.message) };
       if (hasDb()) { try { await kvSet('ai:lastrun', r); } catch {} }
       return res.status(502).json(r);
     }
