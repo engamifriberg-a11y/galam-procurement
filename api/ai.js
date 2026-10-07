@@ -14,6 +14,17 @@ import { fetchNews, digest } from './_lib/news.js';
 const TTL_MS = 12 * 3600 * 1000;
 const NVIDIA_BASE = 'https://integrate.api.nvidia.com/v1';
 
+// פונקציה חסרת-זמן תחזיר 504 של הפלטפורמה בלי הסבר. עדיף להיכשל מפורשות.
+async function withTimeout(ms, label, fn) {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), ms);
+  try { return await fn(ctl.signal); }
+  catch (e) {
+    if (e.name === 'AbortError') throw new Error(`${label}: חריגת זמן אחרי ${ms / 1000} שניות`);
+    throw e;
+  } finally { clearTimeout(t); }
+}
+
 function provider() {
   if (process.env.ANTHROPIC_API_KEY) return 'anthropic';
   if (process.env.GEMINI_API_KEY) return 'gemini';
@@ -101,20 +112,21 @@ async function callGemini(prompt) {
 // NVIDIA NIM — תואם OpenAI
 async function callNvidia(prompt) {
   const model = process.env.NVIDIA_MODEL || 'meta/llama-3.3-70b-instruct';
-  const r = await fetch(`${NVIDIA_BASE}/chat/completions`, {
+  const r = await withTimeout(38000, 'NVIDIA', signal => fetch(`${NVIDIA_BASE}/chat/completions`, {
     method: 'POST',
+    signal,
     headers: { 'content-type': 'application/json', authorization: `Bearer ${process.env.NVIDIA_API_KEY}` },
     body: JSON.stringify({
       model,
       temperature: 0.2,
       top_p: 0.9,
-      max_tokens: 4096,
+      max_tokens: 3000,
       messages: [
         { role: 'system', content: 'אתה אנליסט רכש. אתה מחזיר JSON תקין בלבד, בלי הסברים ובלי גדרות קוד. אינך ממציא עובדות, מספרים או מקורות.' },
         { role: 'user', content: prompt }
       ]
     })
-  });
+  }));
   if (!r.ok) throw new Error(`nvidia ${r.status}: ${(await r.text()).slice(0, 400)}`);
   const d = await r.json();
   return d.choices?.[0]?.message?.content || '';
@@ -146,6 +158,22 @@ export default async function handler(req, res) {
     catch (e) { return res.status(502).json({ error: String(e.message) }); }
   }
 
+  // אבחון: מבודד איזה שלב נכשל, בלי לנחש
+  if (req.query.step === 'news') {
+    try {
+      const t0 = Date.now();
+      const news = await fetchNews();
+      return res.status(200).json({ step: 'news', ms: Date.now() - t0, items: news.items.length, failed: news.failed, sample: news.items.slice(0, 5) });
+    } catch (e) { return res.status(502).json({ step: 'news', error: String(e.message) }); }
+  }
+  if (req.query.step === 'ping') {
+    try {
+      const t0 = Date.now();
+      const out = await callNvidia('החזר בדיוק את ה-JSON הזה ותו לא: {"ok":true}');
+      return res.status(200).json({ step: 'ping', ms: Date.now() - t0, model: process.env.NVIDIA_MODEL, raw: out.slice(0, 400) });
+    } catch (e) { return res.status(502).json({ step: 'ping', error: String(e.message), model: process.env.NVIDIA_MODEL }); }
+  }
+
   const task = req.query.task === 'trend' ? 'trend' : 'risk';
   const cacheKey = `ai:${task}`;
 
@@ -168,7 +196,7 @@ export default async function handler(req, res) {
     if (task === 'trend') {
       prompt = trendPrompt(items);
     } else if (prov === 'nvidia') {
-      const news = await fetchNews();
+      const news = await fetchNews({ perQuery: 6, limit: 55 });
       if (!news.items.length) {
         return res.status(502).json({ error: 'no_news', task, provider: prov,
           message: 'לא התקבלו כותרות חדשות. בלי עוגן אמיתי המערכת לא מריצה את המודל, כדי שלא יומצאו משברים.',

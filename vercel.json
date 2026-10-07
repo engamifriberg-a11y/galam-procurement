@@ -1,7 +1,7 @@
 {
   "functions": {
     "api/market.js": { "maxDuration": 30 },
-    "api/ai.js": { "maxDuration": 120 },
+    "api/ai.js": { "maxDuration": 60 },
     "api/cron/snapshot.js": { "maxDuration": 60 }
   },
   "crons": [
