@@ -21,15 +21,19 @@ export async function riskView(root, { force = false } = {}) {
   }
 
   const d = r.body.data || {};
+  const g = r.body.grounding;
   const alerts = Array.isArray(d.alerts) ? d.alerts : [];
   const sev = s => ['high', 'medium', 'low'].indexOf(s) < 0 ? 2 : ['high', 'medium', 'low'].indexOf(s);
   alerts.sort((a, b) => sev(a.severity) - sev(b.severity));
 
   root.innerHTML = `
   <div class="banner warn">
-    <div><b>הערכת AI, לא ציטוט שוק.</b> הסריקה מבוססת על חיפוש במקורות פומביים ועל פרשנות של מודל שפה.
-    היא נועדה להפנות את תשומת לב הקניין, לא להחליף אישור מול הספק. ${r.body.cached ? 'התוצאה מהמטמון.' : ''}
-    נסרק: ${esc(r.body.at?.slice(0, 16).replace('T', ' ') || '')} · ספק: ${esc(r.body.provider || '')}</div>
+    <div><b>הערכת AI, לא ציטוט שוק.</b> המודל אינו מחפש בעצמו — הוא מקבל כותרות חדשות אמיתיות
+    ומסווג אותן בלבד, וכל התרעה חייבת להפנות לכותרת ממשית. התרעה בלי עוגן נפסלת אוטומטית.
+    הסריקה מפנה את תשומת לב הקניין, לא מחליפה אישור מול הספק.
+    ${g ? `נסרקו ${g.items} כותרות מ-${g.queries} שאילתות ב-${esc(g.source)}.` : ''}
+    ${r.body.cached ? 'התוצאה מהמטמון.' : ''}
+    נסרק ${esc(r.body.at?.slice(0, 16).replace('T', ' ') || '')} · ${esc(r.body.provider || '')}${r.body.model ? ' · ' + esc(r.body.model) : ''}</div>
   </div>
 
   <div class="panel">
@@ -54,7 +58,8 @@ export async function riskView(root, { force = false } = {}) {
         <td class="sub">${esc({ '0-3m':'עד 3 חודשים','3-6m':'3 עד 6 חודשים','6-12m':'6 עד 12 חודשים' }[a.horizon] || a.horizon || '—')}</td>
         <td>${esc(a.israelImpact || '—')}</td>
         <td>${esc(a.headline || '')}<span class="sub">${esc(a.detail || '')}</span>
-          ${(a.sources || []).slice(0, 3).map((u, i) => `<a href="${esc(u)}" target="_blank" rel="noopener" class="sub" style="display:inline-block;margin-inline-end:8px">מקור ${i + 1}</a>`).join('')}</td>
+          ${(a.refTitles || []).slice(0, 3).map((t, i) => `<a href="${esc((a.sources || [])[i] || '#')}" target="_blank" rel="noopener" class="sub" style="display:block">${esc(t)}</a>`).join('')
+            || (a.sources || []).slice(0, 3).map((u, i) => `<a href="${esc(u)}" target="_blank" rel="noopener" class="sub" style="display:inline-block;margin-inline-end:8px">מקור ${i + 1}</a>`).join('')}</td>
         <td>${esc(a.action || '')}</td>
       </tr>`).join('')}</tbody></table></div>`
       : `<div class="pb"><div class="empty"><b>אין מחסור צפוי בישראל</b>הסריקה לא מצאה אירוע מהותי שצפוי לפגוע באספקת הכימיקלים של גלעם בחודשים הקרובים.</div></div>`}
@@ -71,8 +76,9 @@ function notConfigured() {
       כל שאר הלשוניות עובדות על נתוני שוק ישירים.</div></div>
       <p>כדי להפעיל אותה, יש להוסיף בפרויקט ב-Vercel, תחת Settings ← Environment Variables, אחד מהשניים:</p>
       <ul style="color:var(--ink2);line-height:1.9">
-        <li><code>ANTHROPIC_API_KEY</code> — מומלץ, כולל חיפוש ברשת מובנה</li>
-        <li><code>GEMINI_API_KEY</code> — חלופה, עם Google Search מובנה</li>
+        <li><code>NVIDIA_API_KEY</code> — NVIDIA NIM, עם עוגן כותרות חדשות אמיתיות</li>
+        <li><code>ANTHROPIC_API_KEY</code> — עם חיפוש ברשת מובנה</li>
+        <li><code>GEMINI_API_KEY</code> — עם Google Search מובנה</li>
       </ul>
       <p class="note">אחרי ההוספה צריך Redeploy אחד כדי שהמשתנה ייכנס לתוקף. התוצאה נשמרת במטמון ל-12 שעות
       כדי לא לבזבז קריאות.</p>
