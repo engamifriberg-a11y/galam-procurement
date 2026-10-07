@@ -1,6 +1,6 @@
 // תת-לשונית הכימיקלים של גלעם: לכל פריט — תזוזת מנועי העלות, רכיב ההובלה,
 // עוצמת המיקוח, והמלצה מפורשת לקניין בסוף השורה.
-import { esc, nf, pc, dirClass, send, clearCache } from '../../core/app.js';
+import { esc, nf, pc, dirClass, send, clearCache } from '../../core/base.js';
 import { expectedChange, recommend, freightPart } from './data.js';
 
 const WINDOWS = [['d30', 'חודש'], ['d90', 'רבעון'], ['d365', 'שנה']];

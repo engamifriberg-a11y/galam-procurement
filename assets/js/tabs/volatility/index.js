@@ -1,6 +1,6 @@
 // לשונית: תנודתיות חומרי גלם ומדדי מאקרו.
 // מבנה: תת-לשוניות עצמאיות, כל אחת מקבלת את אותו מטען נתונים.
-import { registerTab, esc, stamp, loading } from '../../core/app.js';
+import { registerTab, esc, stamp, loading } from '../../core/base.js';
 import { loadMarket, loadChemicals, loadPrices, indexSeries } from './data.js';
 import { groupView, wireInputs } from './market-view.js';
 import { chemicalsView, wireChemicals } from './chemicals-view.js';

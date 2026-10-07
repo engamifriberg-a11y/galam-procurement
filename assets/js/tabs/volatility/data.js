@@ -1,5 +1,5 @@
 // טעינת הנתונים המשותפת ללשונית התנודתיות, פעם אחת לכל תתי-הלשוניות.
-import { get } from '../../core/app.js';
+import { get } from '../../core/base.js';
 
 export async function loadMarket(fresh = false) {
   const r = await get('/api/market', { fresh });

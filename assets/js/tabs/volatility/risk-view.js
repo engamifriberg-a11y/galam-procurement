@@ -1,6 +1,6 @@
 // תת-לשונית סיכון גיאופוליטי: סריקת AI אחר משברים וחוסרים צפויים בכימיקלים של גלעם.
 // הפלט כאן מסומן במפורש כהערכה, לא כציטוט שוק.
-import { esc, get, clearCache, loading } from '../../core/app.js';
+import { esc, get, clearCache, loading } from '../../core/base.js';
 
 const STATE = { he: { calm: 'רגוע', watch: 'במעקב', strained: 'מתוח' } };
 

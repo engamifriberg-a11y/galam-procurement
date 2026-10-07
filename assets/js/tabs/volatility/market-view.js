@@ -1,6 +1,6 @@
 // תצוגת קבוצת סדרות: כרטיסים + טבלת תנודתיות + הזנת ערך לאינדקס מנוהל.
 // משמשת את תתי-הלשוניות נייר, אנרגיה ופלסטיק, מטבעות והובלה ימית.
-import { esc, nf, pc, dirClass, sparkline, send, clearCache } from '../../core/app.js';
+import { esc, nf, pc, dirClass, sparkline, send, clearCache } from '../../core/base.js';
 
 export function groupView(market, groups, { title, lead, note } = {}) {
   const list = (market.series || []).filter(s => groups.includes(s.group));
