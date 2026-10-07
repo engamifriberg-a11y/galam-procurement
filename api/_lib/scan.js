@@ -31,27 +31,20 @@ export function provider() {
 const JSON_SHAPE = `{"asOf":"YYYY-MM-DD","overall":"calm|watch|strained","summary":"שתיים עד שלוש שורות בעברית","alerts":[{"chemical":"שם הכימיקל","severity":"low|medium|high","horizon":"0-3m|3-6m|6-12m","israelImpact":"יש|מוגבל|אין","headline":"כותרת קצרה בעברית","detail":"שתיים עד ארבע שורות בעברית","action":"המלצה אופרטיבית לקניין בעברית","refs":[מספרי פריטים מהרשימה]}]}`;
 
 export function riskPromptGrounded(items, news) {
-  return `אתה אנליסט סיכוני שרשרת אספקה של חברת גלעם, יצרנית מרכיבי מזון בישראל.
-
-להלן כותרות חדשות אמיתיות מ-60 הימים האחרונים, ממוספרות:
+  return `כותרות חדשות אמיתיות, ממוספרות:
 
 ${digest(news)}
 
-הכימיקלים שגלעם רוכשת:
-${items.map(i => `- ${i.en} (${i.he}), מקור: ${i.origin}, ${i.tons} טון בשנה`).join('\n')}
+כימיקלים שגלעם רוכשת בישראל:
+${items.map(i => i.en).join(', ')}
 
-משימתך: לקבוע אילו מהכותרות לעיל מצביעות על סיכון למחסור או לקפיצת מחיר באספקת הכימיקלים האלה לישראל ב-3 עד 6 החודשים הקרובים. שקול סגירות מפעלים, כוח עליון, מכסים ומגבלות יצוא, סנקציות, הפרעות שיט בים סוף ובסואץ, מחסור במעלה הזרם, עלויות אנרגיה באירופה ובסין, ומגבלות נמלים בישראל.
+החזר JSON קומפקטי בלבד. לכל היותר 4 התרעות, רק כאלה שבאמת מאיימות על אספקה לישראל ב-6 החודשים הקרובים.
+כל התרעה חייבת שדה ref עם מספר כותרת מהרשימה. בלי ref — אל תכלול אותה.
+note ו-act: עד 12 מילים כל אחד, בעברית. בלי טקסט מחוץ ל-JSON.
 
-כללים מחייבים:
-1. בסס כל התרעה אך ורק על הכותרות שלמעלה. אל תוסיף אירועים שאינם ברשימה.
-2. בשדה refs ציין את מספרי הכותרות שעליהן ההתרעה מבוססת. התרעה בלי refs אסורה.
-3. אם כותרת אינה רלוונטית לכימיקלים של גלעם או לאספקה לישראל — התעלם ממנה.
-4. אם אין בכותרות אירוע מהותי, החזר alerts ריק ו-summary שאומר במפורש שלא מזוהה מחסור צפוי בישראל. זו תשובה לגיטימית ואף רצויה.
-5. אל תמציא מספרים, אחוזים או תאריכים שאינם בכותרות.
-6. קיצור הוא חובה: לכל היותר חמש התרעות, הדחופות בלבד. summary עד שתי שורות. detail משפט אחד. action משפט אחד.
+{"overall":"calm|watch|strained","alerts":[{"ref":0,"chem":"שם הכימיקל","sev":"low|medium|high","hz":"0-3m|3-6m|6-12m","il":"יש|מוגבל|אין","note":"","act":""}]}
 
-החזר אך ורק JSON תקין במבנה: ${JSON_SHAPE}
-בלי טקסט מחוץ ל-JSON.`;
+אם אין איום אמיתי: {"overall":"calm","alerts":[]}`;
 }
 
 export function riskPromptSearch(items) {
@@ -113,7 +106,7 @@ export async function callNvidia(prompt, override) {
       model,
       temperature: 0.2,
       top_p: 0.9,
-      max_tokens: 4096,
+      max_tokens: 1800,
       // מתג רשמי של NIM לכיבוי חשיבה. מודלים שלא מכירים אותו מתעלמים ממנו.
       chat_template_kwargs: { thinking: false },
       messages: [
@@ -137,7 +130,7 @@ export async function callNvidia(prompt, override) {
 
 // אבחון: מחזיר את מבנה התשובה הגולמי כדי לראות לאן המודל כותב
 export async function nvidiaRaw(prompt, override) {
-  const model = override || process.env.NVIDIA_MODEL || 'nvidia/nemotron-3-super-120b-a12b';
+  const model = override || process.env.NVIDIA_MODEL || 'openai/gpt-oss-20b';
   const r = await fetch(`${NVIDIA_BASE}/chat/completions`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: `Bearer ${process.env.NVIDIA_API_KEY}` },
@@ -191,7 +184,7 @@ export async function runTask(task) {
   if (task === 'trend') {
     prompt = trendPrompt(items);
   } else if (prov === 'nvidia') {
-    const news = await fetchNews({ perQuery: 6, limit: 24 });
+    const news = await fetchNews({ perQuery: 5, limit: 18 });
     if (!news.items.length) throw new Error('no_news: לא התקבלו כותרות. בלי עוגן אמיתי המודל לא מורץ.');
     grounding = { source: 'Google News RSS', items: news.items.length, queries: news.queries, failed: news.failed };
     newsIndex = news.items;
@@ -208,13 +201,34 @@ export async function runTask(task) {
 
   if (task === 'risk' && newsIndex) {
     const byI = new Map(newsIndex.map(n => [n.i, n]));
-    data.alerts = (Array.isArray(data.alerts) ? data.alerts : []).map(a => {
-      const refs = (Array.isArray(a.refs) ? a.refs : []).map(Number).filter(n => byI.has(n));
-      return { ...a, refs, sources: refs.map(n => byI.get(n).url), refTitles: refs.map(n => `${byI.get(n).source}: ${byI.get(n).title}`) };
-    }).filter(a => a.refs.length);
+    data.alerts = (Array.isArray(data.alerts) ? data.alerts : [])
+      .map(a => {
+        const refs = [a.ref, ...(Array.isArray(a.refs) ? a.refs : [])].map(Number).filter(n => byI.has(n));
+        if (!refs.length) return null;            // התרעה בלי עוגן אמיתי נפסלת
+        const n = byI.get(refs[0]);
+        return {
+          chemical: a.chem || a.chemical || '—',
+          severity: a.sev || a.severity || 'low',
+          horizon: a.hz || a.horizon || '3-6m',
+          israelImpact: a.il || a.israelImpact || 'מוגבל',
+          headline: n.title,
+          detail: a.note || a.detail || '',
+          action: a.act || a.action || '',
+          refs,
+          sources: refs.map(i => byI.get(i).url),
+          refTitles: refs.map(i => `${byI.get(i).source}: ${byI.get(i).title}`)
+        };
+      })
+      .filter(Boolean);
+
+    const sev = data.alerts.filter(a => a.severity === 'high').length;
+    data.asOf = new Date().toISOString().slice(0, 10);
+    data.summary = data.alerts.length
+      ? `נמצאו ${data.alerts.length} אירועים רלוונטיים לאספקה לישראל${sev ? `, מהם ${sev} בחומרה גבוהה` : ''}. כל אירוע מקושר לכותרת שעליה הוא מבוסס.`
+      : 'לא זוהה בכותרות האחרונות אירוע שצפוי לגרום למחסור בכימיקלים של גלעם בישראל.';
   }
 
-  const payload = { task, provider: prov, model: prov === 'nvidia' ? (process.env.NVIDIA_MODEL || 'nvidia/nemotron-3-super-120b-a12b') : undefined, grounding, at: new Date().toISOString(), data };
+  const payload = { task, provider: prov, model: prov === 'nvidia' ? (process.env.NVIDIA_MODEL || 'openai/gpt-oss-20b') : undefined, grounding, at: new Date().toISOString(), data };
   if (hasDb()) { try { await kvSet(`ai:${task}`, payload); } catch { /* לא קריטי */ } }
   return payload;
 }
