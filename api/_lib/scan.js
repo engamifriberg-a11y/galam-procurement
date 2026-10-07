@@ -37,9 +37,9 @@ export function provider() {
 export async function aiConfig() {
   let saved = null;
   if (hasDb()) { try { saved = await kvGet('settings:ai'); } catch { /* ממשיכים לסביבה */ } }
-  if (saved?.geminiKey) return { prov: 'gemini', key: saved.geminiKey, model: saved.geminiModel || 'gemini-2.5-flash', search: true, source: 'ממשק' };
+  if (saved?.geminiKey) return { prov: 'gemini', key: saved.geminiKey, model: saved.geminiModel || 'gemini-3.8-flash', search: true, source: 'ממשק' };
   if (process.env.ANTHROPIC_API_KEY) return { prov: 'anthropic', key: process.env.ANTHROPIC_API_KEY, model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5', search: true, source: 'סביבה' };
-  if (process.env.GEMINI_API_KEY) return { prov: 'gemini', key: process.env.GEMINI_API_KEY, model: process.env.GEMINI_MODEL || 'gemini-2.5-flash', search: true, source: 'סביבה' };
+  if (process.env.GEMINI_API_KEY) return { prov: 'gemini', key: process.env.GEMINI_API_KEY, model: process.env.GEMINI_MODEL || 'gemini-3.8-flash', search: true, source: 'סביבה' };
   if (process.env.NVIDIA_API_KEY) return { prov: 'nvidia', key: process.env.NVIDIA_API_KEY, model: process.env.NVIDIA_MODEL || 'openai/gpt-oss-20b', search: false, source: 'סביבה' };
   return null;
 }
@@ -127,7 +127,7 @@ export async function geminiFetch(model, body, key, signal) {
 }
 
 export async function callGemini(prompt, cfg = {}) {
-  const model = cfg.model || process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  const model = cfg.model || process.env.GEMINI_MODEL || 'gemini-3.8-flash';
   const key = cfg.key || process.env.GEMINI_API_KEY;
   if (!key) throw new Error('אין מפתח Gemini');
   const body = { contents: [{ parts: [{ text: prompt }] }] };

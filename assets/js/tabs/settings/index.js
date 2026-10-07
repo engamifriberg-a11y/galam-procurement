@@ -43,7 +43,7 @@ registerTab({
           <input class="inp" id="gk" type="password" placeholder="${s.saved.geminiKey ? 'שמור: ' + esc(s.saved.geminiKey) : 'הדבק מפתח Gemini'}"
                  style="width:330px;text-align:start" autocomplete="off">
           <select class="inp" id="gm" style="width:190px;text-align:start">
-            ${['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash'].map(m =>
+            ${['gemini-3.8-flash', 'gemini-3.8-pro', 'gemini-2.5-flash', 'gemini-2.5-pro'].map(m =>
               `<option ${s.saved.geminiModel === m ? 'selected' : ''}>${m}</option>`).join('')}
           </select>
           ${s.protected ? '<input class="inp" id="code" type="password" placeholder="קוד ניהול" style="width:130px;text-align:start">' : ''}

@@ -43,7 +43,7 @@ export default async function handler(req, res) {
       if (!k || k.length < 20) return res.status(400).json({ error: 'מפתח לא תקין' });
 
       // בדיקה אמיתית מול Google לפני שמירה, כדי לא לשמור מפתח שבור
-      const model = String(body.geminiModel || 'gemini-2.5-flash').trim();
+      const model = String(body.geminiModel || 'gemini-3.8-flash').trim();
       try {
         await geminiFetch(model, { contents: [{ parts: [{ text: 'השב במילה אחת: בסדר' }] }] }, k);
       } catch (e) {
