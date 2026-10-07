@@ -174,6 +174,22 @@ export default async function handler(req, res) {
     } catch (e) { return res.status(502).json({ step: 'ping', error: String(e.message), model: process.env.NVIDIA_MODEL }); }
   }
 
+  // מדידת זמן על הפרומפט האמיתי, כדי לבחור מודל לפי נתונים ולא לפי תחושה
+  if (req.query.step === 'bench') {
+    const t0 = Date.now();
+    try {
+      const news = await fetchNews({ perQuery: 6, limit: Number(req.query.n) || 40 });
+      const tNews = Date.now() - t0;
+      const prompt = riskPromptGrounded(await chemicals(), news.items);
+      const t1 = Date.now();
+      const out = await callNvidia(prompt);
+      return res.status(200).json({ step: 'bench', model: process.env.NVIDIA_MODEL, newsMs: tNews,
+        modelMs: Date.now() - t1, promptChars: prompt.length, outChars: out.length, head: out.slice(0, 250), tail: out.slice(-250) });
+    } catch (e) {
+      return res.status(502).json({ step: 'bench', model: process.env.NVIDIA_MODEL, totalMs: Date.now() - t0, error: String(e.message) });
+    }
+  }
+
   const task = req.query.task === 'trend' ? 'trend' : 'risk';
   const cacheKey = `ai:${task}`;
 
