@@ -428,6 +428,39 @@
       ],
       "proxy": true,
       "note": "אריזות קרטון — מדד עקיף לשוק הקרטון"
+    },
+    {
+      "id": "pu.ppi_pulp",
+      "tier": "A",
+      "group": "paper",
+      "he": "מדד יצרן · עיסת עץ",
+      "unit": "מדד",
+      "dp": 1,
+      "provider": "fred",
+      "fredId": "WPU0911",
+      "note": "BLS, מדד 1982=100, חודשי — המקור הציבורי האמין לעיסה"
+    },
+    {
+      "id": "pu.ppi_corrugated",
+      "tier": "A",
+      "group": "paper",
+      "he": "מדד יצרן · קרטון גלי ואריזות",
+      "unit": "מדד",
+      "dp": 1,
+      "provider": "fred",
+      "fredId": "WPU09150441",
+      "note": "BLS, חודשי"
+    },
+    {
+      "id": "wd.ppi_pallets",
+      "tier": "A",
+      "group": "wood",
+      "he": "מדד יצרן · ייצור משטחי עץ",
+      "unit": "מדד",
+      "dp": 1,
+      "provider": "fred",
+      "fredId": "PCU321920321920",
+      "note": "BLS, ייצור מכלי עץ ומשטחים, חודשי"
     }
   ]
 }

@@ -71,6 +71,26 @@ async function quote(def) {
   throw new Error(errs.join(' | ') || 'no symbols');
 }
 
+/* FRED — מדדי המחירים ליצרן של ה-BLS האמריקאי. מקור רשמי, חינמי, בלי מפתח,
+   עם היסטוריה מלאה. חודשי ולא יומי, ולכן מפגר כחודש — אבל הוא המקור הציבורי
+   האמין היחיד למחירי עיסה, קרטון ומשטחים. */
+export async function fred(fredId, seriesId, { years = 4 } = {}) {
+  const csv = await t(`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${encodeURIComponent(fredId)}`);
+  const lines = csv.trim().split('\n');
+  const cutoff = Date.now() - years * 365 * 864e5;
+  const out = [];
+  for (const line of lines.slice(1)) {
+    const [day, raw] = line.split(',');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day || '')) continue;
+    const v = Number(raw);
+    if (!Number.isFinite(v)) continue;              // ערך חסר מסומן בנקודה
+    if (Date.parse(day) < cutoff) continue;
+    out.push({ series_id: seriesId, d: day, value: v, source: 'FRED · BLS', tier: 'A' });
+  }
+  if (!out.length) throw new Error(`fred ${fredId}: אין תצפיות`);
+  return out;
+}
+
 export const ADAPTERS = { boi, ecb, quote };
 
 // מריץ את כל המתאמים הדרושים לקבוצת סדרות ומחזיר גם את מה שנכשל, בשמו.
@@ -86,6 +106,8 @@ export async function collect(defs) {
   for (const [prov, list] of byProvider) {
     if (prov === 'quote') {
       for (const def of list) jobs.push([def.id, () => quote(def)]);
+    } else if (prov === 'fred') {
+      for (const def of list) jobs.push([def.id, async () => (await fred(def.fredId, def.id, { years: 1 })).slice(-1)]);
     } else if (ADAPTERS[prov]) {
       jobs.push([prov, () => ADAPTERS[prov]()]);
     }
@@ -141,6 +163,7 @@ export async function backfill(defs, { range = '2y' } = {}) {
   const jobs = [];
   for (const def of defs) {
     if (FX_HISTORY[def.id]) { jobs.push([def.id, FX_HISTORY[def.id]]); continue; }
+    if (def.provider === 'fred') { jobs.push([def.id, () => fred(def.fredId, def.id, { years: 5 })]); continue; }
     if (def.provider === 'quote') {
       const sym = (def.symbols || [])[1] || (def.symbols || [])[0];
       if (sym) jobs.push([def.id, () => yahooHistory(sym, def.id, range)]);

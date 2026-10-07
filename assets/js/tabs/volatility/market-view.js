@@ -54,8 +54,9 @@ function cardHtml(s) {
     <span class="row">
       <b class="${dirClass(s.chg?.d30)}">חודש ${pc(s.chg?.d30)}</b>
       <b class="${dirClass(d90)}">רבעון ${pc(d90)}</b>
-      ${s.lastDate ? `<span>${esc(s.lastDate)}</span>` : `<span>אין נתון</span>`}
+      <b class="${dirClass(s.chg?.d365)}">שנה ${pc(s.chg?.d365)}</b>
     </span>
+    <span class="row dim">${s.lastDate ? esc(s.lastDate) : 'אין נתון'}${s.vol90 == null ? '' : ` · תנודתיות ${s.vol90.toFixed(0)}%`}</span>
   </div>`;
 }
 
