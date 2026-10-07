@@ -71,153 +71,6 @@
       ]
     },
     {
-      "id": "en.ttf",
-      "tier": "B",
-      "group": "energy",
-      "he": "גז טבעי TTF אירופה",
-      "unit": "€/MWh",
-      "dp": 2,
-      "provider": "managed"
-    },
-    {
-      "id": "pl.pp",
-      "tier": "B",
-      "group": "plastic",
-      "he": "פוליפרופילן PP",
-      "unit": "$/טון",
-      "dp": 0,
-      "provider": "managed",
-      "note": "מקור מוצע: ICIS / Dalian"
-    },
-    {
-      "id": "pl.hdpe",
-      "tier": "B",
-      "group": "plastic",
-      "he": "פוליאתילן HDPE",
-      "unit": "$/טון",
-      "dp": 0,
-      "provider": "managed"
-    },
-    {
-      "id": "pl.ldpe",
-      "tier": "B",
-      "group": "plastic",
-      "he": "פוליאתילן LDPE",
-      "unit": "$/טון",
-      "dp": 0,
-      "provider": "managed"
-    },
-    {
-      "id": "pl.pvc",
-      "tier": "B",
-      "group": "plastic",
-      "he": "PVC",
-      "unit": "$/טון",
-      "dp": 0,
-      "provider": "managed"
-    },
-    {
-      "id": "pu.nbsk",
-      "tier": "B",
-      "group": "paper",
-      "he": "עיסת נייר ארוכת סיב NBSK",
-      "unit": "$/טון",
-      "dp": 0,
-      "provider": "managed",
-      "note": "מקור מוצע: FOEX / RISI"
-    },
-    {
-      "id": "pu.bhkp",
-      "tier": "B",
-      "group": "paper",
-      "he": "עיסת נייר קצרת סיב BHKP",
-      "unit": "$/טון",
-      "dp": 0,
-      "provider": "managed"
-    },
-    {
-      "id": "pu.occ",
-      "tier": "B",
-      "group": "paper",
-      "he": "נייר ממוחזר OCC",
-      "unit": "$/טון",
-      "dp": 0,
-      "provider": "managed"
-    },
-    {
-      "id": "pu.sp_shfe",
-      "tier": "B",
-      "group": "paper",
-      "he": "חוזה עיסת נייר SHFE",
-      "unit": "¥/טון",
-      "dp": 0,
-      "provider": "managed",
-      "note": "בורסת שנגחאי, סימול SP"
-    },
-    {
-      "id": "pu.testliner",
-      "tier": "B",
-      "group": "paper",
-      "he": "קרטון גלי Testliner",
-      "unit": "€/טון",
-      "dp": 0,
-      "provider": "managed"
-    },
-    {
-      "id": "fr.fbx_global_40",
-      "tier": "B",
-      "group": "freight",
-      "he": "FBX עולמי 40 רגל",
-      "unit": "$/FEU",
-      "dp": 0,
-      "provider": "managed"
-    },
-    {
-      "id": "fr.wci_40",
-      "tier": "B",
-      "group": "freight",
-      "he": "Drewry WCI משוקלל 40 רגל",
-      "unit": "$/FEU",
-      "dp": 0,
-      "provider": "managed"
-    },
-    {
-      "id": "fr.cn_il_40",
-      "tier": "B",
-      "group": "freight",
-      "he": "סין ← חיפה 40 רגל",
-      "unit": "$/FEU",
-      "dp": 0,
-      "provider": "managed"
-    },
-    {
-      "id": "fr.cn_il_20",
-      "tier": "B",
-      "group": "freight",
-      "he": "סין ← חיפה 20 רגל",
-      "unit": "$/TEU",
-      "dp": 0,
-      "provider": "managed"
-    },
-    {
-      "id": "fr.eu_il_40",
-      "tier": "B",
-      "group": "freight",
-      "he": "צפון אירופה ← חיפה 40 רגל",
-      "unit": "$/FEU",
-      "dp": 0,
-      "provider": "managed"
-    },
-    {
-      "id": "fr.eu_il_20",
-      "tier": "B",
-      "group": "freight",
-      "he": "צפון אירופה ← חיפה 20 רגל",
-      "unit": "$/TEU",
-      "dp": 0,
-      "provider": "managed"
-    },
-    {
       "id": "fr.tanker_eu_il",
       "tier": "B",
       "group": "freight",
@@ -461,6 +314,195 @@
       "provider": "fred",
       "fredId": "PCU321920321920",
       "note": "BLS, ייצור מכלי עץ ומשטחים, חודשי"
+    },
+    {
+      "id": "pu.ppi_paper",
+      "tier": "A",
+      "group": "paper",
+      "he": "מדד יצרן · נייר",
+      "unit": "מדד",
+      "dp": 1,
+      "provider": "fred",
+      "fredId": "WPU0913",
+      "note": "BLS, נייר"
+    },
+    {
+      "id": "pu.ppi_paperboard",
+      "tier": "A",
+      "group": "paper",
+      "he": "מדד יצרן · קרטון",
+      "unit": "מדד",
+      "dp": 1,
+      "provider": "fred",
+      "fredId": "WPU0914",
+      "note": "BLS, קרטון"
+    },
+    {
+      "id": "pu.ppi_allpaper",
+      "tier": "A",
+      "group": "paper",
+      "he": "מדד יצרן · עיסה ונייר כולל",
+      "unit": "מדד",
+      "dp": 1,
+      "provider": "fred",
+      "fredId": "WPU091",
+      "note": "BLS, Pulp Paper and Allied Products"
+    },
+    {
+      "id": "pl.ppi_resins",
+      "tier": "A",
+      "group": "plastic",
+      "he": "מדד יצרן · שרפי פלסטיק",
+      "unit": "מדד",
+      "dp": 1,
+      "provider": "fred",
+      "fredId": "WPU066",
+      "note": "BLS, Plastic Resins and Materials"
+    },
+    {
+      "id": "pl.ppi_thermoplastic",
+      "tier": "A",
+      "group": "plastic",
+      "he": "מדד יצרן · תרמופלסטיים",
+      "unit": "מדד",
+      "dp": 1,
+      "provider": "fred",
+      "fredId": "WPU0662",
+      "note": "BLS, PE PP PVC ודומיהם"
+    },
+    {
+      "id": "pl.ppi_thermoset",
+      "tier": "A",
+      "group": "plastic",
+      "he": "מדד יצרן · תרמוסטיים",
+      "unit": "מדד",
+      "dp": 1,
+      "provider": "fred",
+      "fredId": "WPU0663",
+      "note": "BLS"
+    },
+    {
+      "id": "pl.lyb",
+      "tier": "A",
+      "group": "plastic",
+      "he": "LyondellBasell",
+      "unit": "$",
+      "dp": 2,
+      "provider": "quote",
+      "symbols": [
+        "lyb.us",
+        "LYB"
+      ],
+      "proxy": true,
+      "note": "יצרנית פוליאולפינים — מדד עקיף"
+    },
+    {
+      "id": "pl.dow",
+      "tier": "A",
+      "group": "plastic",
+      "he": "Dow",
+      "unit": "$",
+      "dp": 2,
+      "provider": "quote",
+      "symbols": [
+        "dow.us",
+        "DOW"
+      ],
+      "proxy": true,
+      "note": "יצרנית כימיקלים ופולימרים — מדד עקיף"
+    },
+    {
+      "id": "fr.ppi_deepsea",
+      "tier": "A",
+      "group": "freight",
+      "he": "מדד יצרן · הובלה ימית",
+      "unit": "מדד",
+      "dp": 1,
+      "provider": "fred",
+      "fredId": "PCU483111483111",
+      "note": "BLS, Deep Sea Freight Transportation"
+    },
+    {
+      "id": "fr.zim",
+      "tier": "A",
+      "group": "freight",
+      "he": "ZIM",
+      "unit": "$",
+      "dp": 2,
+      "provider": "quote",
+      "symbols": [
+        "zim.us",
+        "ZIM"
+      ],
+      "proxy": true,
+      "note": "המוביל הישראלי המרכזי לנמלי הארץ — מדד עקיף יומי"
+    },
+    {
+      "id": "fr.maersk",
+      "tier": "A",
+      "group": "freight",
+      "he": "Maersk",
+      "unit": "DKK",
+      "dp": 2,
+      "provider": "quote",
+      "symbols": [
+        "maerskb.dk",
+        "MAERSK-B.CO"
+      ],
+      "proxy": true,
+      "note": "מוביל עולמי — מדד עקיף"
+    },
+    {
+      "id": "fr.hapag",
+      "tier": "A",
+      "group": "freight",
+      "he": "Hapag-Lloyd",
+      "unit": "€",
+      "dp": 2,
+      "provider": "quote",
+      "symbols": [
+        "hlag.de",
+        "HLAG.DE"
+      ],
+      "proxy": true,
+      "note": "מוביל עולמי — מדד עקיף"
+    },
+    {
+      "id": "fr.drybulk",
+      "tier": "A",
+      "group": "freight",
+      "he": "צובר יבש BDRY",
+      "unit": "$",
+      "dp": 2,
+      "provider": "quote",
+      "symbols": [
+        "bdry.us",
+        "BDRY"
+      ],
+      "proxy": true,
+      "note": "חוזי צובר יבש — מדד עקיף"
+    },
+    {
+      "id": "ch.ppi_inorganic",
+      "tier": "A",
+      "group": "chem",
+      "he": "מדד יצרן · כימיקלים אנאורגניים",
+      "unit": "מדד",
+      "dp": 1,
+      "provider": "fred",
+      "fredId": "WPU0613",
+      "note": "BLS, רלוונטי לסודה, חומצות ואשלגן"
+    },
+    {
+      "id": "ch.ppi_industrial",
+      "tier": "A",
+      "group": "chem",
+      "he": "מדד יצרן · כימיקלים תעשייתיים",
+      "unit": "מדד",
+      "dp": 1,
+      "provider": "fred",
+      "fredId": "WPU061",
+      "note": "BLS"
     }
   ]
 }

@@ -6,6 +6,7 @@ import { groupView, wireInputs } from './market-view.js';
 import { chemicalsView, wireChemicals } from './chemicals-view.js';
 import { riskView } from './risk-view.js';
 import { wireAiPanel } from './ai-panel.js';
+import { lanesPanel, wireLanes } from './freight-view.js';
 
 const SUBS = [
   { id: 'paper', he: 'מחירי נייר' },
@@ -64,8 +65,9 @@ registerTab({
       energy: {
         aiTitle: 'קריאת שוק האנרגיה והפולימרים',
         groups: ['energy', 'plastic'], title: 'אנרגיה ופלסטיקים',
-        lead: `<div><b>הנפט והגז חיים.</b> ברנט, WTI וגז טבעי נמשכים ישירות מציטוטי הבורסה.
-          הפולימרים — PP, PE, PVC — אין להם מקור ציבורי חינמי, והם מנוהלים ידנית עד חיבור מנוי.</div>`
+        lead: `<div><b>הכל כאן מתעדכן מעצמו.</b> ברנט, WTI וגז טבעי מציטוטי הבורסה היומיים.
+          הפולימרים דרך מדדי היצרן של ה-BLS לשרפי פלסטיק ולתרמופלסטיים — חודשיים אך רשמיים —
+          ולצידם שתי יצרניות פוליאולפינים נסחרות כמדד יומי עקיף.</div>`
       },
       fx: {
         aiTitle: 'קריאת שוק המטבע',
@@ -75,15 +77,17 @@ registerTab({
       },
       freight: {
         aiTitle: 'קריאת שוק ההובלה',
-        groups: ['freight'], title: 'מחירי הובלה',
-        lead: `<div><b>מכולות 20 ו-40 רגל, ומכליות.</b> מדדי FBX ו-Drewry הם מסחריים, ולכן הסדרות מנוהלות.
-          שורת המפתח לגלעם היא מכלית הכימיקלים מאירופה לישראל וההובלה היבשתית בארץ — שתיהן נכנסות
-          ישירות לחישוב ההמלצות בתת-הלשונית של הכימיקלים.</div>`
+        groups: ['freight'], title: 'מדדי הובלה חיים',
+        lead: `<div><b>מדד ההובלה הימית הרשמי של ה-BLS, ולצידו מדדים נסחרים יומיים</b> — ובהם ZIM,
+          המוביל המרכזי לנמלי הארץ. מדדי FBX ו-Drewry הם מסחריים ואינם זמינים. טבלת הנתיבים לחיפה
+          נמצאת מתחת.</div>`
       }
     }[active];
 
-    host.innerHTML = groupView(market, cfg.groups, cfg);
+    host.innerHTML = groupView(market, cfg.groups, cfg)
+      + (active === 'freight' ? await lanesPanel(byId) : '');
     wireInputs(host, rerender, active);
+    if (active === 'freight') wireLanes(host, rerender);
     wireAiPanel(host, `/api/ai?task=brief&group=${active}`);
   }
 });

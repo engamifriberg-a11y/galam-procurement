@@ -5,7 +5,7 @@
 // רלוונטית לשאילתה, ולכן המודל מסווג על בסיס מה שבאמת כתוב ולא על ניחוש
 // מהכותרת. בלי מפתח המערכת ממשיכה לעבוד על ה-RSS.
 import { hasDb, kvGet } from './db.js';
-import { fetchNews, QUERIES } from './news.js';
+import { fetchNews, QUERIES, CHEM_QUERIES } from './news.js';
 
 export async function searchKey() {
   if (process.env.TAVILY_API_KEY) return { key: process.env.TAVILY_API_KEY, source: 'סביבה' };
@@ -41,21 +41,21 @@ export async function tavily(query, { key, depth = 'basic', max = 5, days = 60, 
 const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
 
 /* העוגן למודול המשברים: Tavily אם יש מפתח, אחרת RSS. */
-export async function gatherEvidence({ limit = 18 } = {}) {
+export async function gatherEvidence({ limit = 18, queries = [...CHEM_QUERIES, ...QUERIES] } = {}) {
   const sk = await searchKey();
   if (!sk) {
-    const news = await fetchNews({ perQuery: 5, limit });
+    const news = await fetchNews({ perQuery: 4, limit, queries });
     return { engine: 'Google News RSS', items: news.items, failed: news.failed, queries: news.queries, rich: false };
   }
 
   const results = await Promise.allSettled(
-    QUERIES.map(q => tavily(q, { key: sk.key, max: 4 }))
+    queries.map(q => tavily(q, { key: sk.key, max: 4 }))
   );
   const failed = [];
   const seen = new Set();
   let items = [];
   results.forEach((r, i) => {
-    if (r.status !== 'fulfilled') { failed.push({ q: QUERIES[i], error: String(r.reason?.message || r.reason) }); return; }
+    if (r.status !== 'fulfilled') { failed.push({ q: queries[i], error: String(r.reason?.message || r.reason) }); return; }
     for (const it of r.value) {
       const k = (it.title || '').toLowerCase().replace(/\W+/g, '').slice(0, 70);
       if (!k || seen.has(k)) continue;
@@ -70,9 +70,9 @@ export async function gatherEvidence({ limit = 18 } = {}) {
 
   if (!items.length) {
     const news = await fetchNews({ perQuery: 5, limit });
-    return { engine: 'Google News RSS (גיבוי)', items: news.items, failed, queries: QUERIES.length, rich: false };
+    return { engine: 'Google News RSS (גיבוי)', items: news.items, failed, queries: queries.length, rich: false };
   }
-  return { engine: 'Tavily', items, failed, queries: QUERIES.length, rich: true, keySource: sk.source };
+  return { engine: 'Tavily', items, failed, queries: queries.length, rich: true, keySource: sk.source };
 }
 
 /* חיפוש ערך מפורסם למדד מנוהל בודד */

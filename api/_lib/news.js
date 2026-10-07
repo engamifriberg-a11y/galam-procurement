@@ -8,6 +8,23 @@
 
 const FEED = q => `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=en-US&gl=US&ceid=US:en`;
 
+/* שאילתות לפי הכימיקלים של גלעם עצמם, ולא לפי נושאים כלליים. הסריקה
+   מחפשת את מה שהוא קונה בפועל, ולכן מוצאת אירועים שנוגעים לו ולא רעש. */
+export const CHEM_QUERIES = [
+  'potassium hydroxide OR caustic potash supply shortage price',
+  'caustic soda sodium hydroxide plant outage force majeure price',
+  'hydrochloric acid supply price Israel OR Europe',
+  'sodium bisulfite OR sodium metabisulfite supply price',
+  'soda ash export Turkey OR China price supply',
+  'sulphuric acid OR sulfur price export restriction',
+  'hydrogen peroxide plant shutdown OR supply shortage',
+  'citric acid China export price anti-dumping shortage',
+  'borax OR boric acid supply Turkey export',
+  'calcium carbonate OR lime price energy cost',
+  'ferric chloride supply price',
+  'chemical tanker rates Mediterranean Israel import'
+];
+
 // שאילתות ממוקדות לשרשרת האספקה של גלעם ולצווארי הבקבוק שמשפיעים על ישראל
 export const QUERIES = [
   'caustic soda OR chlor-alkali plant shutdown OR force majeure',
