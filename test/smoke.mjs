@@ -210,6 +210,25 @@ else {
   !/<button class="brow/.test(rh) ? pass('שורות הגרף אינן button') : fail('שורת גרף עטופה ב-button, המילוי ייעלם');
 }
 
+// כרטיס הספק וסינון לפי תחום סיווג
+{
+  els.get('#subview')._html = '';
+  clearCache();
+  await sup.render(els.get('#view'), { sub: 'contacts', go: () => {} });
+  await new Promise(r => setTimeout(r, 250));
+  const h = els.get('#subview').innerHTML;
+  h.includes('data-open=') ? pass('שורת ספק לחיצה') : fail('שורת הספק אינה לחיצה');
+  h.includes('id="drawer"') ? pass('מגירת כרטיס הספק קיימת') : fail('מגירת כרטיס הספק חסרה');
+  h.includes('data-k="cls"') ? pass('סינון לפי תחום סיווג') : fail('סינון תחום סיווג חסר');
+
+  els.get('#subview')._html = '';
+  clearCache();
+  await sup.render(els.get('#view'), { sub: 'segment', go: () => {} });
+  await new Promise(r => setTimeout(r, 250));
+  const g = els.get('#subview').innerHTML;
+  g.includes('data-jump="cls"') ? pass('תחומי סיווג לחיצים') : fail('תחומי הסיווג אינם לחיצים');
+}
+
 // מחלקות שמופיעות ב-HTML אך חסרות ב-CSS — זה מה שגרם לשדות להיערם
 {
   const css = await readFile(join(ROOT, 'assets/css/app.css'), 'utf8');

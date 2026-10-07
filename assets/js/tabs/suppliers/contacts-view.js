@@ -23,7 +23,8 @@ const FDEF = [
   ['cur', 'מטבע', d => d.cur],
   ['cn', 'ארץ', d => d.cn],
   ['city', 'עיר', d => d.city],
-  ['own', 'אחראי', d => d.own]
+  ['own', 'אחראי', d => d.own],
+  ['cls', 'תחום סיווג', d => d.cls]
 ];
 const RISKS = [['high', 'מסוכן'], ['watch', 'במעקב'], ['ok', 'תקין'], ['none', 'לא נסקר']];
 
@@ -86,14 +87,67 @@ export function contactsView(data) {
         : `<tr><td colspan="7"><div class="empty"><b>אין ספק שמתאים</b>נסה מילה אחת פחות, או שנה את שדה החיפוש.</div></td></tr>`}</tbody>
     </table></div>
     ${rows.length > S.limit ? `<button class="more" data-more>הצג עוד ${nf(Math.min(120, rows.length - S.limit), 0)} מתוך ${nf(rows.length - S.limit, 0)}</button>` : ''}
-  </div>`;
+  </div>
+  <div class="scrim" id="scrim"></div>
+  <aside class="drawer" id="drawer" aria-hidden="true" aria-label="כרטיס ספק">
+    <div class="dh"><div id="dHead"></div><button class="x" id="dClose" aria-label="סגירה">×</button></div>
+    <div class="db" id="dBody"></div>
+  </aside>`;
+}
+
+const row = (label, value) => value ? `<dt>${esc(label)}</dt><dd>${value}</dd>` : '';
+
+/* כרטיס ספק מלא. נפתח בלחיצה על שורה ומציג כל שדה שקיים ברשומה. */
+function detail(d) {
+  const r = riskOf(d);
+  const gap = (d.scr != null && d.ind != null) ? d.scr - d.ind : null;
+  return {
+    head: `<h3>${esc(d.nm || '(ללא שם)')}</h3>
+      <span class="sub">${esc(d.id)}${d.en ? ' · ' + esc(d.en) : ''}</span>
+      <span class="sub"><span class="pill ${r.cls}">${esc(r.he)}</span>
+        <span class="pill ${d.act ? 'ok' : 'off'}">${esc(d.st || '')}</span></span>`,
+    body: `
+      <div class="grp"><h4>יצירת קשר</h4><dl class="kv">
+        ${row('טלפון', d.tel ? `<a class="mono" href="tel:${esc(d.tel.replace(/\s/g, ''))}">${esc(d.tel)}</a>` : '')}
+        ${row('פקס', d.fax ? `<span class="mono">${esc(d.fax)}</span>` : '')}
+        ${row('אימייל', d.em ? `<a href="mailto:${esc(d.em)}">${esc(d.em)}</a>` : '')}
+        ${row('אתר', d.web ? `<a href="${d.web.startsWith('http') ? esc(d.web) : 'https://' + esc(d.web)}" target="_blank" rel="noopener">${esc(d.web)}</a>` : '')}
+        ${row('כתובת', esc(d.ad))}
+        ${row('עיר', esc(d.city))}
+        ${row('ארץ', esc(d.cn))}
+      </dl></div>
+
+      <div class="grp"><h4>סקור ואשראי</h4><dl class="kv">
+        ${row('סקור הספק', d.scr == null ? 'לא נסקר' : `<b>${nf(d.scr, 0)}</b>`)}
+        ${row('סקור ענפי', d.ind == null ? '' : nf(d.ind, 0))}
+        ${row('פער מול הענף', gap == null ? '' : `<span class="${gap < 0 ? 'up' : 'down'}">${(gap > 0 ? '+' : '') + gap.toFixed(0)}</span>`)}
+        ${row('המלצת אשראי', d.crd == null ? '' : nf(d.crd, 0) + ' ₪')}
+      </dl></div>
+
+      <div class="grp"><h4>תנאי מסחר</h4><dl class="kv">
+        ${row('תנאי תשלום', esc(d.ptd))}
+        ${row('מטבע', esc(d.cur))}
+        ${row('סוג ספק', esc(d.t) + (d.tc ? ` (${esc(d.tc)})` : ''))}
+        ${row('תחום סיווג', esc(d.cls))}
+        ${row('תחום עיסוק', esc(d.field))}
+        ${row('מקור', d.ord === 'O' ? 'הזמנה' : d.ord === 'D' ? 'דרישה' : '')}
+      </dl></div>
+
+      <div class="grp"><h4>זיהוי וניהול</h4><dl class="kv">
+        ${row('עוסק מורשה / ח.פ', d.vat ? `<span class="mono">${esc(d.vat)}</span>` : '')}
+        ${row('אחראי טיפול', esc(d.own))}
+        ${row('תאריך פתיחה', esc(d.dt))}
+        ${row('שנת הקמה', d.yr == null ? '' : nf(d.yr, 0))}
+        ${row('מספר עובדים', d.emp == null ? '' : nf(d.emp, 0))}
+      </dl></div>`
+  };
 }
 
 const ar = k => `<span class="ar">${S.sort.k === k ? (S.sort.d > 0 ? '▲' : '▼') : ''}</span>`;
 
 function card(d) {
   const r = riskOf(d);
-  return `<tr>
+  return `<tr class="click" data-open="${esc(d.id)}" tabindex="0">
     <td>
       <span class="nm">${esc(d.nm || '—')}</span>
       ${d.en ? `<span class="sub">${esc(d.en)}</span>` : ''}
@@ -122,7 +176,7 @@ function chips() {
   return act.map(([k, t]) => `<button class="chip" data-chip="${k}"><b>${esc(t)}</b> ✕</button>`).join('');
 }
 
-export function wireContacts(root, rerender, jump) {
+export function wireContacts(root, rerender, jump, rowsRef = []) {
   const q = root.querySelector('#q');
   if (q) {
     let timer;
@@ -151,6 +205,37 @@ export function wireContacts(root, rerender, jump) {
   });
   const csv = root.querySelector('[data-csv]');
   if (csv) csv.onclick = () => exportCsv(root);
+
+  // כרטיס ספק מלא בלחיצה על שורה
+  const drawer = root.querySelector('#drawer');
+  const scrim = root.querySelector('#scrim');
+  const close = () => {
+    drawer?.classList.remove('on');
+    drawer?.setAttribute('aria-hidden', 'true');
+    scrim?.classList.remove('on');
+    root.querySelectorAll('tr.on').forEach(t => t.classList.remove('on'));
+  };
+  const byId = new Map(rowsRef.map(d => [String(d.id), d]));
+  root.querySelectorAll('tr[data-open]').forEach(tr => {
+    const open = () => {
+      const d = byId.get(tr.dataset.open);
+      if (!d || !drawer) return;
+      const { head, body } = detail(d);
+      root.querySelector('#dHead').innerHTML = head;
+      root.querySelector('#dBody').innerHTML = body;
+      root.querySelectorAll('tr.on').forEach(t => t.classList.remove('on'));
+      tr.classList.add('on');
+      drawer.classList.add('on');
+      drawer.setAttribute('aria-hidden', 'false');
+      scrim?.classList.add('on');
+    };
+    tr.onclick = e => { if (e.target.closest('a')) return; open(); };
+    tr.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); open(); } };
+  });
+  const x = root.querySelector('#dClose');
+  if (x) x.onclick = close;
+  if (scrim) scrim.onclick = close;
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
 }
 
 function exportCsv(root) {

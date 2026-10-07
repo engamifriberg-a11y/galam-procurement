@@ -34,8 +34,8 @@ export function segmentView(data) {
   </div>
 
   <div class="panel">
-    <div class="ph"><h2>תחומי סיווג</h2></div>
-    <div class="pb">${bars(tally(rows, d => d.cls).slice(0, 12), rows.length, null)}</div>
+    <div class="ph"><h2>תחומי סיווג</h2><p>לחיצה על תחום פותחת את רשימת הספקים שבו</p></div>
+    <div class="pb">${bars(tally(rows, d => d.cls).slice(0, 20), rows.length, 'cls')}</div>
   </div>`;
 }
 

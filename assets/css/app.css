@@ -256,3 +256,25 @@ thead th[data-sort]:hover{color:var(--accent)}
 
 .pill.off{color:var(--ink3); border-color:var(--line)}
 .search.plain input{padding-inline-start:14px}
+
+/* ---------- כרטיס ספק נפתח ---------- */
+tr.click{cursor:pointer}
+tbody tr.on{background:var(--accent-soft)}
+.scrim{position:fixed; inset:0; background:rgba(8,20,28,.42); opacity:0; pointer-events:none; transition:opacity .18s; z-index:40}
+.scrim.on{opacity:1; pointer-events:auto}
+.drawer{position:fixed; top:0; inset-inline-end:0; height:100%; width:min(440px,100%); background:var(--surface);
+  border-inline-start:1px solid var(--line); z-index:41; transform:translateX(-100%); transition:transform .22s ease;
+  display:flex; flex-direction:column; padding-top:env(safe-area-inset-top,0)}
+.drawer.on{transform:translateX(0)}
+.dh{padding:18px; border-bottom:1px solid var(--line2); display:flex; gap:12px; align-items:flex-start}
+.dh h3{font-size:19px; line-height:1.25; margin:0}
+.dh .sub{display:block; margin-top:4px}
+.dh .x{margin-inline-start:auto; background:none; border:0; font-size:24px; color:var(--ink3); cursor:pointer; line-height:1}
+.dh .x:hover{color:var(--ink)}
+.db{overflow-y:auto; padding:4px 18px 30px}
+.grp{padding:14px 0; border-bottom:1px solid var(--line2)}
+.grp:last-child{border:0}
+.grp h4{margin:0 0 9px; font-size:12.5px; color:var(--ink3); font-weight:500}
+.kv{display:grid; grid-template-columns:116px 1fr; gap:6px 12px; font-size:14px; margin:0}
+.kv dt{color:var(--ink3); font-size:13px}
+.kv dd{margin:0; word-break:break-word}

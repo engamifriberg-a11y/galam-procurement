@@ -15,7 +15,7 @@ const SUBS = [
 ];
 
 // מצב משותף לכל תתי-הלשוניות, כדי שלחיצה על גרף תעביר סינון
-export const S = { q: '', t: '', st: '', city: '', cn: '', cur: '', pt: '', own: '', risk: '', limit: 60, sort: { k: 'nm', d: 1 } };
+export const S = { q: '', scope: 'all', t: '', st: '', city: '', cn: '', cur: '', pt: '', own: '', cls: '', risk: '', limit: 60, sort: { k: 'nm', d: 1 } };
 
 export async function loadSuppliers(fresh = false) {
   const r = await get('/api/suppliers', { fresh });
@@ -51,6 +51,7 @@ export function applyFilters(rows) {
     if (S.cur && d.cur !== S.cur) return false;
     if (S.pt && d.ptd !== S.pt) return false;
     if (S.own && d.own !== S.own) return false;
+    if (S.cls && d.cls !== S.cls) return false;
     if (S.risk && riskOf(d).code !== S.risk) return false;
     return true;
   });
@@ -80,13 +81,13 @@ registerTab({
 
     const rerender = () => this.render(view, { sub: active, go });
     const jump = (key, value, to = 'contacts') => {
-      Object.assign(S, { q: '', t: '', st: '', city: '', cn: '', cur: '', pt: '', own: '', risk: '', limit: 60 });
+      Object.assign(S, { q: '', scope: 'all', t: '', st: '', city: '', cn: '', cur: '', pt: '', own: '', cls: '', risk: '', limit: 60 });
       S[key] = value;
       go('suppliers', to);
     };
 
-    if (active === 'risk') { host.innerHTML = riskView(data, jump); wireContacts(host, rerender, jump); return; }
-    if (active === 'contacts') { host.innerHTML = contactsView(data); wireContacts(host, rerender, jump); return; }
+    if (active === 'risk') { host.innerHTML = riskView(data, jump); wireContacts(host, rerender, jump, data.rows); return; }
+    if (active === 'contacts') { host.innerHTML = contactsView(data); wireContacts(host, rerender, jump, data.rows); return; }
     if (active === 'segment') { host.innerHTML = segmentView(data, jump); wireSegment(host, jump); return; }
     if (active === 'terms') { host.innerHTML = termsView(data, jump); wireTerms(host, jump); return; }
 
