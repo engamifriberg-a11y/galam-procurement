@@ -98,6 +98,8 @@ main{padding:4px 0 56px; min-height:60vh}
 
 .tier{display:inline-block; width:8px; height:8px; border-radius:2px; flex:none}
 .tier.a{background:var(--accent)} .tier.b{background:var(--c5)} .tier.c{background:var(--violet)}
+.proxy{font-style:normal; font-size:10.5px; color:var(--warn); border:1px solid color-mix(in srgb,var(--warn) 45%,transparent);
+  border-radius:3px; padding:0 5px; margin-inline-start:6px; vertical-align:middle}
 .legend-tier{display:inline-flex; align-items:center; gap:7px; color:var(--ink3); font-size:12px; flex-wrap:wrap}
 .legend-tier i{margin-inline-start:10px}
 

@@ -1,44 +1,433 @@
 {
-  "_doc": "קטלוג הסדרות. tier A = מקור שוק ישיר דרך API. tier B = אינדקס מנוהל שמוזן ידנית או מדוח תקופתי. tier C = הערכת AI. כל סדרה נשמרת בהיסטוריה ב-Neon ומשם מחושבת התנודתיות.",
+  "_doc": "קטלוג הסדרות. tier A = מקור שוק ישיר דרך API. tier B = אינדקס מנוהל שמוזן ידנית או מדוח תקופתי. tier C = הערכת AI. כל סדרה נשמרת בהיסטוריה ב-Neon ומשם מחושבת התנודתיות. סדרה עם proxy=true היא מדד נסחר שמשקף מגמה בענף, ולא מחיר הסחורה עצמה — הממשק מסמן זאת.",
   "series": [
-    { "id": "fx.usdils", "tier": "A", "group": "fx", "he": "דולר / שקל", "unit": "₪", "dp": 4, "provider": "boi", "note": "שער יציג בנק ישראל" },
-    { "id": "fx.eurils", "tier": "A", "group": "fx", "he": "אירו / שקל", "unit": "₪", "dp": 4, "provider": "boi", "note": "שער יציג בנק ישראל" },
-    { "id": "fx.eurusd", "tier": "A", "group": "fx", "he": "אירו / דולר", "unit": "$", "dp": 4, "provider": "ecb", "note": "ECB דרך Frankfurter" },
-
-    { "id": "en.brent", "tier": "A", "group": "energy", "he": "נפט ברנט", "unit": "$/חבית", "dp": 2, "provider": "quote", "symbols": ["cb.f", "BZ=F"] },
-    { "id": "en.wti", "tier": "A", "group": "energy", "he": "נפט WTI", "unit": "$/חבית", "dp": 2, "provider": "quote", "symbols": ["cl.f", "CL=F"] },
-    { "id": "en.ngas", "tier": "A", "group": "energy", "he": "גז טבעי Henry Hub", "unit": "$/MMBtu", "dp": 3, "provider": "quote", "symbols": ["ng.f", "NG=F"] },
-    { "id": "en.ttf", "tier": "B", "group": "energy", "he": "גז טבעי TTF אירופה", "unit": "€/MWh", "dp": 2, "provider": "managed" },
-
-    { "id": "pl.pp", "tier": "B", "group": "plastic", "he": "פוליפרופילן PP", "unit": "$/טון", "dp": 0, "provider": "managed", "note": "מקור מוצע: ICIS / Dalian" },
-    { "id": "pl.hdpe", "tier": "B", "group": "plastic", "he": "פוליאתילן HDPE", "unit": "$/טון", "dp": 0, "provider": "managed" },
-    { "id": "pl.ldpe", "tier": "B", "group": "plastic", "he": "פוליאתילן LDPE", "unit": "$/טון", "dp": 0, "provider": "managed" },
-    { "id": "pl.pvc", "tier": "B", "group": "plastic", "he": "PVC", "unit": "$/טון", "dp": 0, "provider": "managed" },
-
-    { "id": "pu.nbsk", "tier": "B", "group": "paper", "he": "עיסת נייר ארוכת סיב NBSK", "unit": "$/טון", "dp": 0, "provider": "managed", "note": "מקור מוצע: FOEX / RISI" },
-    { "id": "pu.bhkp", "tier": "B", "group": "paper", "he": "עיסת נייר קצרת סיב BHKP", "unit": "$/טון", "dp": 0, "provider": "managed" },
-    { "id": "pu.occ", "tier": "B", "group": "paper", "he": "נייר ממוחזר OCC", "unit": "$/טון", "dp": 0, "provider": "managed" },
-    { "id": "pu.sp_shfe", "tier": "B", "group": "paper", "he": "חוזה עיסת נייר SHFE", "unit": "¥/טון", "dp": 0, "provider": "managed", "note": "בורסת שנגחאי, סימול SP" },
-    { "id": "pu.testliner", "tier": "B", "group": "paper", "he": "קרטון גלי Testliner", "unit": "€/טון", "dp": 0, "provider": "managed" },
-
-    { "id": "fr.fbx_global_40", "tier": "B", "group": "freight", "he": "FBX עולמי 40 רגל", "unit": "$/FEU", "dp": 0, "provider": "managed" },
-    { "id": "fr.wci_40", "tier": "B", "group": "freight", "he": "Drewry WCI משוקלל 40 רגל", "unit": "$/FEU", "dp": 0, "provider": "managed" },
-    { "id": "fr.cn_il_40", "tier": "B", "group": "freight", "he": "סין ← חיפה 40 רגל", "unit": "$/FEU", "dp": 0, "provider": "managed" },
-    { "id": "fr.cn_il_20", "tier": "B", "group": "freight", "he": "סין ← חיפה 20 רגל", "unit": "$/TEU", "dp": 0, "provider": "managed" },
-    { "id": "fr.eu_il_40", "tier": "B", "group": "freight", "he": "צפון אירופה ← חיפה 40 רגל", "unit": "$/FEU", "dp": 0, "provider": "managed" },
-    { "id": "fr.eu_il_20", "tier": "B", "group": "freight", "he": "צפון אירופה ← חיפה 20 רגל", "unit": "$/TEU", "dp": 0, "provider": "managed" },
-    { "id": "fr.tanker_eu_il", "tier": "B", "group": "freight", "he": "מכלית כימיקלים אירופה ← ישראל", "unit": "$/טון", "dp": 0, "provider": "managed", "note": "פרמטר מרכזי בהמלצות הקנייה" },
-    { "id": "fr.truck_il", "tier": "B", "group": "freight", "he": "הובלת מיכלית בישראל", "unit": "₪/טון", "dp": 0, "provider": "managed" },
-
-    { "id": "ch.caustic", "tier": "B", "group": "chem", "he": "סודה קאוסטית NaOH", "unit": "$/טון יבש", "dp": 0, "provider": "managed" },
-    { "id": "ch.koh", "tier": "B", "group": "chem", "he": "אשלגן הידרוקסיד KOH", "unit": "$/טון", "dp": 0, "provider": "managed" },
-    { "id": "ch.kcl", "tier": "B", "group": "chem", "he": "אשלגן כלורי KCl", "unit": "$/טון", "dp": 0, "provider": "managed" },
-    { "id": "ch.soda_ash", "tier": "B", "group": "chem", "he": "סודה אש", "unit": "$/טון", "dp": 0, "provider": "managed" },
-    { "id": "ch.sulfur", "tier": "B", "group": "chem", "he": "גופרית", "unit": "$/טון", "dp": 0, "provider": "managed" },
-    { "id": "ch.h2o2", "tier": "B", "group": "chem", "he": "מי חמצן", "unit": "$/טון", "dp": 0, "provider": "managed" },
-    { "id": "ch.citric", "tier": "B", "group": "chem", "he": "חומצת לימון סין", "unit": "$/טון", "dp": 0, "provider": "managed" },
-    { "id": "ch.borax", "tier": "B", "group": "chem", "he": "בוראקס", "unit": "$/טון", "dp": 0, "provider": "managed" },
-    { "id": "ch.corn", "tier": "A", "group": "chem", "he": "תירס CBOT", "unit": "¢/בושל", "dp": 1, "provider": "quote", "symbols": ["zc.f", "ZC=F"] },
-    { "id": "ch.power_il", "tier": "B", "group": "chem", "he": "תעריף חשמל תעשייתי ישראל", "unit": "אג׳/קוט״ש", "dp": 2, "provider": "managed" }
+    {
+      "id": "fx.usdils",
+      "tier": "A",
+      "group": "fx",
+      "he": "דולר / שקל",
+      "unit": "₪",
+      "dp": 4,
+      "provider": "boi",
+      "note": "שער יציג בנק ישראל"
+    },
+    {
+      "id": "fx.eurils",
+      "tier": "A",
+      "group": "fx",
+      "he": "אירו / שקל",
+      "unit": "₪",
+      "dp": 4,
+      "provider": "boi",
+      "note": "שער יציג בנק ישראל"
+    },
+    {
+      "id": "fx.eurusd",
+      "tier": "A",
+      "group": "fx",
+      "he": "אירו / דולר",
+      "unit": "$",
+      "dp": 4,
+      "provider": "ecb",
+      "note": "ECB דרך Frankfurter"
+    },
+    {
+      "id": "en.brent",
+      "tier": "A",
+      "group": "energy",
+      "he": "נפט ברנט",
+      "unit": "$/חבית",
+      "dp": 2,
+      "provider": "quote",
+      "symbols": [
+        "cb.f",
+        "BZ=F"
+      ]
+    },
+    {
+      "id": "en.wti",
+      "tier": "A",
+      "group": "energy",
+      "he": "נפט WTI",
+      "unit": "$/חבית",
+      "dp": 2,
+      "provider": "quote",
+      "symbols": [
+        "cl.f",
+        "CL=F"
+      ]
+    },
+    {
+      "id": "en.ngas",
+      "tier": "A",
+      "group": "energy",
+      "he": "גז טבעי Henry Hub",
+      "unit": "$/MMBtu",
+      "dp": 3,
+      "provider": "quote",
+      "symbols": [
+        "ng.f",
+        "NG=F"
+      ]
+    },
+    {
+      "id": "en.ttf",
+      "tier": "B",
+      "group": "energy",
+      "he": "גז טבעי TTF אירופה",
+      "unit": "€/MWh",
+      "dp": 2,
+      "provider": "managed"
+    },
+    {
+      "id": "pl.pp",
+      "tier": "B",
+      "group": "plastic",
+      "he": "פוליפרופילן PP",
+      "unit": "$/טון",
+      "dp": 0,
+      "provider": "managed",
+      "note": "מקור מוצע: ICIS / Dalian"
+    },
+    {
+      "id": "pl.hdpe",
+      "tier": "B",
+      "group": "plastic",
+      "he": "פוליאתילן HDPE",
+      "unit": "$/טון",
+      "dp": 0,
+      "provider": "managed"
+    },
+    {
+      "id": "pl.ldpe",
+      "tier": "B",
+      "group": "plastic",
+      "he": "פוליאתילן LDPE",
+      "unit": "$/טון",
+      "dp": 0,
+      "provider": "managed"
+    },
+    {
+      "id": "pl.pvc",
+      "tier": "B",
+      "group": "plastic",
+      "he": "PVC",
+      "unit": "$/טון",
+      "dp": 0,
+      "provider": "managed"
+    },
+    {
+      "id": "pu.nbsk",
+      "tier": "B",
+      "group": "paper",
+      "he": "עיסת נייר ארוכת סיב NBSK",
+      "unit": "$/טון",
+      "dp": 0,
+      "provider": "managed",
+      "note": "מקור מוצע: FOEX / RISI"
+    },
+    {
+      "id": "pu.bhkp",
+      "tier": "B",
+      "group": "paper",
+      "he": "עיסת נייר קצרת סיב BHKP",
+      "unit": "$/טון",
+      "dp": 0,
+      "provider": "managed"
+    },
+    {
+      "id": "pu.occ",
+      "tier": "B",
+      "group": "paper",
+      "he": "נייר ממוחזר OCC",
+      "unit": "$/טון",
+      "dp": 0,
+      "provider": "managed"
+    },
+    {
+      "id": "pu.sp_shfe",
+      "tier": "B",
+      "group": "paper",
+      "he": "חוזה עיסת נייר SHFE",
+      "unit": "¥/טון",
+      "dp": 0,
+      "provider": "managed",
+      "note": "בורסת שנגחאי, סימול SP"
+    },
+    {
+      "id": "pu.testliner",
+      "tier": "B",
+      "group": "paper",
+      "he": "קרטון גלי Testliner",
+      "unit": "€/טון",
+      "dp": 0,
+      "provider": "managed"
+    },
+    {
+      "id": "fr.fbx_global_40",
+      "tier": "B",
+      "group": "freight",
+      "he": "FBX עולמי 40 רגל",
+      "unit": "$/FEU",
+      "dp": 0,
+      "provider": "managed"
+    },
+    {
+      "id": "fr.wci_40",
+      "tier": "B",
+      "group": "freight",
+      "he": "Drewry WCI משוקלל 40 רגל",
+      "unit": "$/FEU",
+      "dp": 0,
+      "provider": "managed"
+    },
+    {
+      "id": "fr.cn_il_40",
+      "tier": "B",
+      "group": "freight",
+      "he": "סין ← חיפה 40 רגל",
+      "unit": "$/FEU",
+      "dp": 0,
+      "provider": "managed"
+    },
+    {
+      "id": "fr.cn_il_20",
+      "tier": "B",
+      "group": "freight",
+      "he": "סין ← חיפה 20 רגל",
+      "unit": "$/TEU",
+      "dp": 0,
+      "provider": "managed"
+    },
+    {
+      "id": "fr.eu_il_40",
+      "tier": "B",
+      "group": "freight",
+      "he": "צפון אירופה ← חיפה 40 רגל",
+      "unit": "$/FEU",
+      "dp": 0,
+      "provider": "managed"
+    },
+    {
+      "id": "fr.eu_il_20",
+      "tier": "B",
+      "group": "freight",
+      "he": "צפון אירופה ← חיפה 20 רגל",
+      "unit": "$/TEU",
+      "dp": 0,
+      "provider": "managed"
+    },
+    {
+      "id": "fr.tanker_eu_il",
+      "tier": "B",
+      "group": "freight",
+      "he": "מכלית כימיקלים אירופה ← ישראל",
+      "unit": "$/טון",
+      "dp": 0,
+      "provider": "managed",
+      "note": "פרמטר מרכזי בהמלצות הקנייה"
+    },
+    {
+      "id": "fr.truck_il",
+      "tier": "B",
+      "group": "freight",
+      "he": "הובלת מיכלית בישראל",
+      "unit": "₪/טון",
+      "dp": 0,
+      "provider": "managed"
+    },
+    {
+      "id": "ch.caustic",
+      "tier": "B",
+      "group": "chem",
+      "he": "סודה קאוסטית NaOH",
+      "unit": "$/טון יבש",
+      "dp": 0,
+      "provider": "managed"
+    },
+    {
+      "id": "ch.koh",
+      "tier": "B",
+      "group": "chem",
+      "he": "אשלגן הידרוקסיד KOH",
+      "unit": "$/טון",
+      "dp": 0,
+      "provider": "managed"
+    },
+    {
+      "id": "ch.kcl",
+      "tier": "B",
+      "group": "chem",
+      "he": "אשלגן כלורי KCl",
+      "unit": "$/טון",
+      "dp": 0,
+      "provider": "managed"
+    },
+    {
+      "id": "ch.soda_ash",
+      "tier": "B",
+      "group": "chem",
+      "he": "סודה אש",
+      "unit": "$/טון",
+      "dp": 0,
+      "provider": "managed"
+    },
+    {
+      "id": "ch.sulfur",
+      "tier": "B",
+      "group": "chem",
+      "he": "גופרית",
+      "unit": "$/טון",
+      "dp": 0,
+      "provider": "managed"
+    },
+    {
+      "id": "ch.h2o2",
+      "tier": "B",
+      "group": "chem",
+      "he": "מי חמצן",
+      "unit": "$/טון",
+      "dp": 0,
+      "provider": "managed"
+    },
+    {
+      "id": "ch.citric",
+      "tier": "B",
+      "group": "chem",
+      "he": "חומצת לימון סין",
+      "unit": "$/טון",
+      "dp": 0,
+      "provider": "managed"
+    },
+    {
+      "id": "ch.borax",
+      "tier": "B",
+      "group": "chem",
+      "he": "בוראקס",
+      "unit": "$/טון",
+      "dp": 0,
+      "provider": "managed"
+    },
+    {
+      "id": "ch.corn",
+      "tier": "A",
+      "group": "chem",
+      "he": "תירס CBOT",
+      "unit": "¢/בושל",
+      "dp": 1,
+      "provider": "quote",
+      "symbols": [
+        "zc.f",
+        "ZC=F"
+      ]
+    },
+    {
+      "id": "ch.power_il",
+      "tier": "B",
+      "group": "chem",
+      "he": "תעריף חשמל תעשייתי ישראל",
+      "unit": "אג׳/קוט״ש",
+      "dp": 2,
+      "provider": "managed"
+    },
+    {
+      "id": "wd.lumber",
+      "tier": "A",
+      "group": "wood",
+      "he": "עצה CME",
+      "unit": "$/1000 רגל",
+      "dp": 2,
+      "provider": "quote",
+      "symbols": [
+        "lbr.f",
+        "LBR=F"
+      ],
+      "note": "חוזה עתידי על עצה, מחיר סחורה ישיר"
+    },
+    {
+      "id": "wd.timber_etf",
+      "tier": "A",
+      "group": "wood",
+      "he": "יערנות ועץ עולמי",
+      "unit": "$",
+      "dp": 2,
+      "provider": "quote",
+      "symbols": [
+        "wood.us",
+        "WOOD"
+      ],
+      "proxy": true,
+      "note": "סל מניות יערנות עולמי, מדד עקיף למגמת העץ"
+    },
+    {
+      "id": "wd.pallets",
+      "tier": "A",
+      "group": "wood",
+      "he": "משטחי עץ עולמי",
+      "unit": "AUD",
+      "dp": 2,
+      "provider": "quote",
+      "symbols": [
+        "bxb.au",
+        "BXB.AX"
+      ],
+      "proxy": true,
+      "note": "Brambles/CHEP, מפעילת מאגר המשטחים הגדולה בעולם — מדד עקיף"
+    },
+    {
+      "id": "wd.pallet_il",
+      "tier": "B",
+      "group": "wood",
+      "he": "משטח עץ סטנדרטי בישראל",
+      "unit": "₪/יחידה",
+      "dp": 1,
+      "provider": "managed",
+      "note": "מחיר בפועל מהספק. אין מקור ציבורי"
+    },
+    {
+      "id": "pu.stora",
+      "tier": "A",
+      "group": "paper",
+      "he": "Stora Enso",
+      "unit": "€",
+      "dp": 2,
+      "provider": "quote",
+      "symbols": [
+        "sterv.fi",
+        "STERV.HE"
+      ],
+      "proxy": true,
+      "note": "יצרנית עיסה וקרטון אירופית — מדד עקיף לעיסה"
+    },
+    {
+      "id": "pu.upm",
+      "tier": "A",
+      "group": "paper",
+      "he": "UPM-Kymmene",
+      "unit": "€",
+      "dp": 2,
+      "provider": "quote",
+      "symbols": [
+        "upm.fi",
+        "UPM.HE"
+      ],
+      "proxy": true,
+      "note": "יצרנית עיסה ונייר — מדד עקיף"
+    },
+    {
+      "id": "pu.ip",
+      "tier": "A",
+      "group": "paper",
+      "he": "International Paper",
+      "unit": "$",
+      "dp": 2,
+      "provider": "quote",
+      "symbols": [
+        "ip.us",
+        "IP"
+      ],
+      "proxy": true,
+      "note": "אריזות קרטון — מדד עקיף לשוק הקרטון"
+    }
   ]
 }

@@ -48,7 +48,7 @@ function tierDot(t) { return `<i class="tier ${t.toLowerCase()}" title="${t === 
 function cardHtml(s) {
   const d90 = s.chg?.d90;
   return `<div class="card">
-    <span class="nm">${tierDot(s.tier)}${esc(s.he)}</span>
+    <span class="nm">${tierDot(s.tier)}${esc(s.he)}${s.proxy ? '<em class="proxy" title="מדד נסחר שמשקף מגמה בענף, לא מחיר הסחורה">עקיף</em>' : ''}</span>
     <span class="val">${s.last == null ? '—' : nf(s.last, s.dp)}<small>${esc(s.unit)}</small></span>
     ${sparkline(s.hist, d90)}
     <span class="row">
@@ -62,7 +62,7 @@ function cardHtml(s) {
 function rowHtml(s) {
   const cell = v => `<td class="num ${dirClass(v)}">${pc(v)}</td>`;
   return `<tr>
-    <td>${tierDot(s.tier)} ${esc(s.he)}<span class="sub">${esc(s.id)}${s.note ? ' · ' + esc(s.note) : ''}</span></td>
+    <td>${tierDot(s.tier)} ${esc(s.he)}${s.proxy ? '<em class="proxy">עקיף</em>' : ''}<span class="sub">${esc(s.id)}${s.note ? ' · ' + esc(s.note) : ''}</span></td>
     <td>${s.source ? esc(s.source) : '<span class="sub">לא מחובר</span>'}</td>
     <td class="num">${s.last == null ? '—' : nf(s.last, s.dp)} <span class="sub">${esc(s.unit)}</span></td>
     ${cell(s.chg?.d1)}${cell(s.chg?.d7)}${cell(s.chg?.d30)}${cell(s.chg?.d90)}${cell(s.chg?.d365)}
