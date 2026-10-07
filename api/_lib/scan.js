@@ -9,6 +9,8 @@ export async function chemicals() {
 
 const TTL_MS = 12 * 3600 * 1000;
 const NVIDIA_BASE = 'https://integrate.api.nvidia.com/v1';
+export let lastCallMs = null, lastUsage = null;
+export const callStats = () => ({ lastCallMs, lastUsage });
 
 // פונקציה חסרת-זמן תחזיר 504 של הפלטפורמה בלי הסבר. עדיף להיכשל מפורשות.
 export async function withTimeout(ms, label, fn) {
@@ -98,6 +100,7 @@ export async function callGemini(prompt) {
 // NVIDIA NIM — תואם OpenAI
 export async function callNvidia(prompt, override) {
   const model = override || process.env.NVIDIA_MODEL || 'nvidia/llama-3.1-nemotron-70b-instruct';
+  const t0 = Date.now();
   const r = await withTimeout(52000, 'NVIDIA', signal => fetch(`${NVIDIA_BASE}/chat/completions`, {
     method: 'POST',
     signal,
@@ -107,18 +110,21 @@ export async function callNvidia(prompt, override) {
       temperature: 0.2,
       top_p: 0.9,
       max_tokens: 1800,
-      // מתג רשמי של NIM לכיבוי חשיבה. מודלים שלא מכירים אותו מתעלמים ממנו.
-      chat_template_kwargs: { thinking: false },
+      // gpt-oss חושף בקרת מאמץ חשיבה רשמית. מתג ה-chat_template_kwargs שניסיתי
+      // קודם אינו נתמך כאן והוא זה שגרם לקריאה להיתקע.
+      ...(model.includes('gpt-oss') ? { reasoning_effort: 'low' } : {}),
       messages: [
         // "detailed thinking off" מכבה את שרשרת החשיבה במשפחת Nemotron.
         // בלעדיה המודל מייצר אלפי טוקני הגיון וחורג ממגבלת הזמן של הפונקציה.
-        { role: 'system', content: 'detailed thinking off\n\nאתה אנליסט רכש. אתה מחזיר JSON תקין בלבד, בלי הסברים, בלי שרשרת חשיבה ובלי גדרות קוד. אינך ממציא עובדות, מספרים או מקורות.' },
+        { role: 'system', content: 'אתה אנליסט רכש. החזר JSON תקין בלבד, בלי הסברים ובלי גדרות קוד. אל תמציא עובדות או מקורות.' },
         { role: 'user', content: prompt }
       ]
     })
   }));
   if (!r.ok) throw new Error(`nvidia ${r.status}: ${(await r.text()).slice(0, 400)}`);
   const d = await r.json();
+  lastCallMs = Date.now() - t0;
+  lastUsage = d.usage || null;
   const msg = d.choices?.[0]?.message || {};
   // מודלי חשיבה עלולים להחזיר את הפלט תחת reasoning_content ולהשאיר content ריק
   const out = msg.content || msg.reasoning_content || '';

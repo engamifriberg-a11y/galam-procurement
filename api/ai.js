@@ -6,7 +6,7 @@
 // התוצאה כבר מוכנה והמשתמש אינו ממתין כלל.
 import { hasDb, kvGet, kvSet } from './_lib/db.js';
 import { fetchNews } from './_lib/news.js';
-import { provider, runTask, callNvidia, nvidiaRaw, nvidiaModels, chemicals, riskPromptGrounded } from './_lib/scan.js';
+import { provider, runTask, callNvidia, nvidiaRaw, nvidiaModels, chemicals, riskPromptGrounded, callStats } from './_lib/scan.js';
 
 const TTL_MS = 12 * 3600 * 1000;
 
@@ -50,7 +50,7 @@ export default async function handler(req, res) {
       const prompt = riskPromptGrounded(await chemicals(), news.items);
       const t1 = Date.now();
       const out = await callNvidia(prompt, req.query.model);
-      const r = { step: 'bench', model: req.query.model || process.env.NVIDIA_MODEL, newsMs: tNews, modelMs: Date.now() - t1, promptChars: prompt.length, outChars: out.length, head: out.slice(0, 200) };
+      const r = { step: 'bench', model: req.query.model || process.env.NVIDIA_MODEL, newsMs: tNews, modelMs: Date.now() - t1, promptChars: prompt.length, outChars: out.length, usage: callStats().lastUsage, head: out.slice(0, 200) };
       if (hasDb()) { try { await kvSet('ai:lastrun', r); } catch {} }
       return res.status(200).json(r);
     } catch (e) {
