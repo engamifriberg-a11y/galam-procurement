@@ -8,7 +8,7 @@ export function groupView(market, groups, { title, lead, note, aiTitle } = {}) {
   if (!list.length) return `<div class="panel"><div class="pb"><div class="empty"><b>אין סדרות בקבוצה</b></div></div></div>`;
 
   const live = list.filter(s => s.tier === 'A');
-  const managed = list.filter(s => s.tier !== 'A');
+  const managed = list.filter(s => s.provider === 'managed' || !s.points);
 
   return `
   ${lead ? `<div class="banner">${lead}</div>` : ''}
@@ -74,13 +74,15 @@ function rowHtml(s) {
 
 function inputRow(s) {
   const today = new Date().toISOString().slice(0, 10);
+  // סדרה עם ערך מפורסם ידוע מגיעה ממולאת מראש, כדי שהאישור יהיה בלחיצה אחת
+  const seed = s.seed || null;
   return `<tr data-sid="${esc(s.id)}">
-    <td>${esc(s.he)}<span class="sub">${esc(s.id)}</span></td>
+    <td>${esc(s.he)}<span class="sub">${esc(s.id)}${seed ? ' · ערך מפורסם ממולא מראש, בדוק ואשר' : ''}</span></td>
     <td class="sub">${esc(s.unit)}</td>
     <td class="num">${s.last == null ? '—' : nf(s.last, s.dp)}</td>
-    <td><input class="inp" type="number" step="any" data-f="value" placeholder="0"></td>
-    <td><input class="inp" type="date" data-f="date" value="${today}" style="width:142px"></td>
-    <td><input class="inp" type="text" data-f="source" placeholder="ICIS / ספק / דוח" style="width:140px;text-align:start"></td>
+    <td><input class="inp" type="number" step="any" data-f="value" value="${seed ? seed.value : ''}" placeholder="0"></td>
+    <td><input class="inp" type="date" data-f="date" value="${seed ? esc(seed.date) : today}" style="width:142px"></td>
+    <td><input class="inp" type="text" data-f="source" value="${seed ? esc(seed.source) : ''}" placeholder="ICIS / ספק / דוח" style="width:150px;text-align:start"></td>
     <td><button class="btn sm" data-save>שמור</button></td>
   </tr>`;
 }

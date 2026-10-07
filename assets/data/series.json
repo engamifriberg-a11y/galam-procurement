@@ -513,7 +513,12 @@
       "dp": 0,
       "provider": "oilprice",
       "code": "CONTAINER_FREIGHT_COMPOSITE_USD",
-      "note": "Drewry World Container Index, מחיר ספוט משוקלל בשמונה נתיבים מזרח-מערב. דורש מפתח חינמי"
+      "note": "Drewry World Container Index, מחיר ספוט משוקלל בשמונה נתיבים מזרח-מערב. דורש מפתח חינמי",
+      "seed": {
+        "value": 4434,
+        "date": "2026-10-01",
+        "source": "Drewry WCI (פרסום שבועי)"
+      }
     }
   ]
 }
