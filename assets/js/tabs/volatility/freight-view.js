@@ -16,7 +16,14 @@ const LS_RATIO = 'teu-ratio';
 
 const loadQuotes = () => { try { return JSON.parse(localStorage.getItem(LS) || '{}'); } catch { return {}; } };
 const saveQuotes = q => { try { localStorage.setItem(LS, JSON.stringify(q)); } catch { /* מצב פרטי */ } };
-const teuRatio = () => { const v = Number(localStorage?.getItem?.(LS_RATIO)); return Number.isFinite(v) && v > 0.3 && v < 1 ? v : 0.62; };
+// גישה ל-localStorage זורקת בגלישה פרטית, ושרשור אופציונלי לא מגן על
+// משתנה שאינו מוגדר כלל. לכן try/catch ולא אופרטור.
+const teuRatio = () => {
+  try {
+    const v = Number(localStorage.getItem(LS_RATIO));
+    return Number.isFinite(v) && v > 0.3 && v < 1 ? v : 0.62;
+  } catch { return 0.62; }
+};
 
 export async function lanesPanel(byId) {
   const r = await get('/assets/data/lanes.json');

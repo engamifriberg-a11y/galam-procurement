@@ -164,7 +164,7 @@ await vol.render(els.get('#view'), { sub: 'freight', go: () => {} });
 await new Promise(r => setTimeout(r, 200));
 const fh = els.get('#subview').innerHTML;
 fh.includes('data-quote') ? pass('כפתור שליפת ערכים מהרשת') : fail('כפתור שליפת ערכים חסר');
-fh.includes('נתיבי הובלה לנמל חיפה') ? pass('טבלת הנתיבים לחיפה') : fail('טבלת הנתיבים חסרה');
+fh.includes('מחירי מכולה לנמל חיפה') ? pass('טבלת הנתיבים לחיפה') : fail('טבלת הנתיבים חסרה');
 fh.includes('data-lane-save') ? pass('הזנת הצעת מחיר לנתיב') : fail('שדה הצעת מחיר חסר');
 fh.includes('statusbar') ? pass('שורת סטטוס שוק ההובלה') : fail('שורת הסטטוס חסרה');
 
