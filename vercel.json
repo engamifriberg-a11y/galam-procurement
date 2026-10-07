@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "api/market.js": { "maxDuration": 30 },
+    "api/ai.js": { "maxDuration": 120 },
+    "api/cron/snapshot.js": { "maxDuration": 60 }
+  },
+  "crons": [
+    { "path": "/api/cron/snapshot", "schedule": "20 4 * * *" }
+  ]
+}

@@ -3,53 +3,44 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>פרויקט חדש</title>
+<title>גלעם · ניהול רכש</title>
 <meta name="theme-color" content="#0E6E6A">
+<meta name="description" content="מערכת מודולרית לניהול הרכש של גלעם">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230E6E6A'/%3E%3Cpath d='M8 21l5-9 4 6 3-4 4 7z' fill='white'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@700&family=Heebo:wght@300;400;500&display=swap" rel="stylesheet">
-<style>
-:root{
-  --page:#EDF1F2; --surface:#FFFFFF; --ink:#0F2230; --ink2:#41586A; --ink3:#7A8C99;
-  --line:#D5DEE1; --accent:#0E6E6A;
-  box-sizing:border-box;
-}
-@media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]){
-    --page:#0D171E; --surface:#13222C; --ink:#E6EEF1; --ink2:#A9BFCB; --ink3:#78909E;
-    --line:#263B47; --accent:#49B3AC;
-  }
-}
-*,*::before,*::after{box-sizing:inherit}
-body{
-  margin:0; min-height:100dvh; background:var(--page); color:var(--ink);
-  font-family:"Heebo","Segoe UI",Arial,sans-serif; font-size:16px; line-height:1.6;
-  display:flex; flex-direction:column;
-  padding:env(safe-area-inset-top,0) 16px env(safe-area-inset-bottom,0);
-}
-main{flex:1; display:flex; align-items:center; justify-content:center}
-.card{
-  background:var(--surface); border:1px solid var(--line); border-radius:12px;
-  padding:40px 34px; max-width:520px; width:100%;
-}
-h1{font-family:"Frank Ruhl Libre",Georgia,serif; font-weight:700; font-size:30px; margin:0 0 10px; letter-spacing:-.01em}
-p{margin:0 0 18px; color:var(--ink2)}
-.dot{display:inline-flex; align-items:center; gap:8px; font-size:13px; color:var(--ink3)}
-.dot i{width:7px; height:7px; border-radius:50%; background:var(--accent); display:inline-block}
-hr{border:0; border-top:1px solid var(--line); margin:22px 0 16px}
-footer{text-align:center; padding:18px 0 24px; color:var(--ink3); font-size:12.5px}
-footer b{font-weight:500; color:var(--ink2)}
-</style>
+<link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700&family=Heebo:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/app.css">
 </head>
 <body>
-<main>
-  <div class="card">
-    <h1>פרויקט חדש</h1>
-    <p>האתר אופס והוא מוכן לבנייה מחדש. כל דחיפה למאגר בגיטהאב מתפרסמת כאן אוטומטית.</p>
-    <hr>
-    <span class="dot"><i></i>הפריסה פעילה</span>
+<header>
+  <div class="wrap head-top">
+    <div class="brand">
+      <h1>גלעם · ניהול רכש</h1>
+      <p id="subtitle">מערכת מודולרית. שלב נוכחי: תנודתיות חומרי גלם ומדדי מאקרו</p>
+    </div>
+    <div class="head-side">
+      <span class="stamp" id="stamp"></span>
+      <button class="btn primary" id="refresh">רענון נתונים</button>
+      <button class="icon-btn" id="theme" title="מצב תצוגה" aria-label="החלפת מצב תצוגה">◐</button>
+    </div>
   </div>
-</main>
-<footer>© כל הזכויות שמורות ל<b>עמי פרייברג</b></footer>
+  <div class="wrap"><nav class="tabs" id="tabs" role="tablist"></nav></div>
+</header>
+
+<main class="wrap" id="view"></main>
+
+<footer>
+  <div class="wrap">
+    <span>© כל הזכויות שמורות ל<b>עמי פרייברג</b></span>
+    <span class="legend-tier">
+      <i class="tier a"></i> מקור שוק ישיר
+      <i class="tier b"></i> אינדקס מנוהל
+      <i class="tier c"></i> הערכת AI
+    </span>
+  </div>
+</footer>
+
+<script type="module" src="/assets/js/core/app.js"></script>
 </body>
 </html>

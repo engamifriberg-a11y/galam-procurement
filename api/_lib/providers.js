@@ -1,0 +1,99 @@
+// מתאמי מקורות. כל מתאם מחזיר [{series_id, d, value, source, tier}] או זורק שגיאה.
+// הוספת מקור חדש = פונקציה אחת + רישום ב-ADAPTERS. שום קוד אחר לא משתנה.
+
+const today = () => new Date().toISOString().slice(0, 10);
+
+async function j(url, opts = {}) {
+  const r = await fetch(url, { ...opts, headers: { 'User-Agent': 'galam-procurement/1.0', ...(opts.headers || {}) } });
+  if (!r.ok) throw new Error(`${r.status} ${url.split('?')[0]}`);
+  return r.json();
+}
+async function t(url) {
+  const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 galam-procurement/1.0' } });
+  if (!r.ok) throw new Error(`${r.status} ${url.split('?')[0]}`);
+  return r.text();
+}
+
+// ---------- בנק ישראל: שער יציג רשמי ----------
+async function boi() {
+  const data = await j('https://boi.org.il/PublicApi/GetExchangeRates?asJson=true');
+  const list = data.exchangeRates || [];
+  const pick = k => list.find(x => x.key === k);
+  const d = (list[0]?.lastUpdate || today()).slice(0, 10);
+  const out = [];
+  const usd = pick('USD'), eur = pick('EUR');
+  if (usd) out.push({ series_id: 'fx.usdils', d, value: usd.currentExchangeRate / (usd.unit || 1), source: 'בנק ישראל', tier: 'A' });
+  if (eur) out.push({ series_id: 'fx.eurils', d, value: eur.currentExchangeRate / (eur.unit || 1), source: 'בנק ישראל', tier: 'A' });
+  if (!out.length) throw new Error('boi: no rates');
+  return out;
+}
+
+// ---------- ECB דרך Frankfurter ----------
+async function ecb() {
+  const data = await j('https://api.frankfurter.dev/v1/latest?base=EUR&symbols=USD,ILS');
+  const d = data.date || today();
+  const out = [];
+  if (data.rates?.USD) out.push({ series_id: 'fx.eurusd', d, value: data.rates.USD, source: 'ECB', tier: 'A' });
+  return out;
+}
+
+// ---------- ציטוטי סחורות: Stooq ואז Yahoo כגיבוי ----------
+async function stooq(symbol, seriesId) {
+  const csv = await t(`https://stooq.com/q/l/?s=${encodeURIComponent(symbol)}&f=sd2t2ohlcv&h&e=csv`);
+  const line = csv.trim().split('\n')[1];
+  if (!line) throw new Error('stooq: empty');
+  const c = line.split(',');
+  const d = c[1], close = Number(c[6]);
+  if (!close || !/^\d{4}-\d{2}-\d{2}$/.test(d)) throw new Error('stooq: bad row');
+  return { series_id: seriesId, d, value: close, source: 'Stooq', tier: 'A' };
+}
+
+async function yahoo(symbol, seriesId) {
+  const data = await j(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=5d&interval=1d`);
+  const res = data.chart?.result?.[0];
+  const ts = res?.timestamp || [];
+  const close = res?.indicators?.quote?.[0]?.close || [];
+  for (let i = close.length - 1; i >= 0; i--) {
+    if (close[i] != null) {
+      return { series_id: seriesId, d: new Date(ts[i] * 1000).toISOString().slice(0, 10), value: close[i], source: 'Yahoo Finance', tier: 'A' };
+    }
+  }
+  throw new Error('yahoo: no close');
+}
+
+async function quote(def) {
+  const [s1, s2] = def.symbols || [];
+  const errs = [];
+  for (const [fn, sym] of [[stooq, s1], [yahoo, s2]]) {
+    if (!sym) continue;
+    try { return [await fn(sym, def.id)]; } catch (e) { errs.push(`${sym}: ${e.message}`); }
+  }
+  throw new Error(errs.join(' | ') || 'no symbols');
+}
+
+export const ADAPTERS = { boi, ecb, quote };
+
+// מריץ את כל המתאמים הדרושים לקבוצת סדרות ומחזיר גם את מה שנכשל, בשמו.
+export async function collect(defs) {
+  const points = [], failed = [];
+  const byProvider = new Map();
+  for (const def of defs) {
+    if (def.provider === 'managed') continue;
+    if (!byProvider.has(def.provider)) byProvider.set(def.provider, []);
+    byProvider.get(def.provider).push(def);
+  }
+  const jobs = [];
+  for (const [prov, list] of byProvider) {
+    if (prov === 'quote') {
+      for (const def of list) jobs.push([def.id, () => quote(def)]);
+    } else if (ADAPTERS[prov]) {
+      jobs.push([prov, () => ADAPTERS[prov]()]);
+    }
+  }
+  const settled = await Promise.allSettled(jobs.map(([, fn]) => fn()));
+  settled.forEach((r, i) => {
+    if (r.status === 'fulfilled') points.push(...r.value);
+    else failed.push({ name: jobs[i][0], error: String(r.reason?.message || r.reason) });
+  });
+  return { points, failed };
+}
