@@ -1,0 +1,33 @@
+{
+  "name": "ספקים",
+  "short_name": "ספקים",
+  "description": "מרכז ניהול ספקים — אנשי קשר, סיווג, תנאי תשלום ובקרה",
+  "lang": "he",
+  "dir": "rtl",
+  "start_url": "/suppliers/",
+  "scope": "/suppliers/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#EDF1F2",
+  "theme_color": "#0E6E6A",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
