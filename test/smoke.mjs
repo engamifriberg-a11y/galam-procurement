@@ -31,8 +31,16 @@ class El {
 const els = new Map([['#view', new El('#view')], ['#tabs', new El('#tabs')], ['#stamp', new El('#stamp')],
   ['#theme', new El('#theme')], ['#refresh', new El('#refresh')], ['#subview', new El('#subview')]]);
 
+// מאתר גם אלמנטים שנוצרו בתוך HTML שנכתב, כמו דפדפן אמיתי
+function findEl(sel) {
+  if (els.has(sel)) return els.get(sel);
+  if (sel?.startsWith('#') && log.some(([, h]) => h.includes(`id="${sel.slice(1)}"`))) {
+    const el = new El(sel); els.set(sel, el); return el;
+  }
+  return null;
+}
 globalThis.document = {
-  querySelector: s => els.get(s) || null,
+  querySelector: findEl,
   querySelectorAll: () => [],
   addEventListener() {},
   documentElement: new El('html'),
@@ -62,6 +70,8 @@ globalThis.fetch = async (url) => {
     : u.startsWith('/api/prices') ? {}
     : u.includes('task=brief') ? { group: 'x', he: 'x', text: 'קריאת בדיקה.', basedOn: 3, missing: 1, at: new Date().toISOString(), provider: 'nvidia' }
     : u.includes('task=pitch') ? { key: '1', item: 'x', rec: 'ask', text: 'טיעון בדיקה.', at: new Date().toISOString() }
+    : u.startsWith('/api/settings') ? { protected: false, saved: {}, active: { provider: 'nvidia', model: 'openai/gpt-oss-20b', search: false, source: 'סביבה' }, env: { nvidia: true, gemini: false, anthropic: false } }
+    : u.includes('task=quote') ? { group: 'freight', asked: 8, quotes: [] }
     : u.startsWith('/api/analysis') ? { window: 'd90', series: API_MARKET.series, rows: [], modes: {} }
     : u.startsWith('/api/ai') ? (AI_OK ? AI_PAYLOAD : { error: 'no_ai_key', message: 'test' })
     : JSON.parse(await readFile(join(ROOT, u.replace(/^\//, '')), 'utf8'));
@@ -146,5 +156,26 @@ await vol.render(els.get('#view'), { sub: 'chem', go: () => {} });
 await new Promise(r => setTimeout(r, 200));
 els.get('#subview').innerHTML.includes('data-pitch=')
   ? pass('כפתור נימוק בשורות הכימיקלים') : fail('כפתור נימוק חסר');
+
+// כפתור שליפת הערכים מופיע בלשונית עם אינדקסים מנוהלים
+els.get('#subview')._html = '';
+clearCache();
+await vol.render(els.get('#view'), { sub: 'freight', go: () => {} });
+await new Promise(r => setTimeout(r, 200));
+els.get('#subview').innerHTML.includes('data-quote')
+  ? pass('כפתור שליפת ערכים מהרשת') : fail('כפתור שליפת ערכים חסר');
+
+// לשונית ההגדרות
+const settings = tabs().find(t => t.id === 'settings');
+if (!settings) { fail('לשונית ההגדרות לא נרשמה'); }
+else {
+  clearCache();
+  const sv = new El('#settings-view');
+  await settings.render(sv, {});
+  await new Promise(r => setTimeout(r, 200));
+  const h = log.filter(([id]) => id === '#settings-view').map(([, x]) => x).join('\n');
+  h.includes('id="gk"') ? pass('לשונית הגדרות: שדה מפתח Gemini') : fail('לשונית הגדרות: שדה חסר');
+  h.includes('ADMIN_CODE') ? pass('לשונית הגדרות: אזהרת אבטחה מוצגת') : fail('לשונית הגדרות: אזהרה חסרה');
+}
 
 console.log(process.exitCode ? '\nנכשל' : '\nעבר');

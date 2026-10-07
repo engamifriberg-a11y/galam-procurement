@@ -1,6 +1,6 @@
 // תצוגת קבוצת סדרות: כרטיסים + טבלת תנודתיות + הזנת ערך לאינדקס מנוהל.
 // משמשת את תתי-הלשוניות נייר, אנרגיה ופלסטיק, מטבעות והובלה ימית.
-import { esc, nf, pc, dirClass, sparkline, send, clearCache } from '../../core/base.js';
+import { esc, nf, pc, dirClass, sparkline, send, get, clearCache } from '../../core/base.js';
 import { aiPanelShell } from './ai-panel.js';
 
 export function groupView(market, groups, { title, lead, note, aiTitle } = {}) {
@@ -32,12 +32,14 @@ export function groupView(market, groups, { title, lead, note, aiTitle } = {}) {
 
   ${managed.length ? `
   <div class="panel">
-    <div class="ph"><h2>הזנת אינדקס מנוהל</h2><p>לסדרות שאין להן מקור חינמי. הערך נשמר עם תאריך ונכנס מיד לחישוב התנודתיות וההמלצות</p></div>
+    <div class="ph"><h2>הזנת אינדקס מנוהל</h2><p>לסדרות שאין להן מקור חינמי. הערך נשמר עם תאריך ונכנס מיד לחישוב התנודתיות וההמלצות</p>
+      <span class="right"><button class="btn sm" data-quote>שלוף ערכים מהרשת</button></span>
+    </div>
     <div class="pb"><div class="tblwrap"><table>
       <thead><tr><th>סדרה</th><th>יחידה</th><th class="num">ערך נוכחי</th><th>ערך חדש</th><th>תאריך</th><th>מקור</th><th></th></tr></thead>
       <tbody>${managed.map(inputRow).join('')}</tbody>
     </table></div>
-    <p class="note">${esc(note || 'מומלץ לעדכן אינדקס מנוהל אחת לשבוע או עם קבלת הדוח התקופתי מהספק או מבית התוכן.')}</p></div>
+    <p class="note" data-quote-msg>${esc(note || 'מומלץ לעדכן אינדקס מנוהל אחת לשבוע או עם קבלת הדוח התקופתי מהספק או מבית התוכן.')}</p></div>
   </div>` : ''}`;
 }
 
@@ -82,7 +84,39 @@ function inputRow(s) {
   </tr>`;
 }
 
-export function wireInputs(root, onSaved) {
+export function wireInputs(root, onSaved, group) {
+  // שליפת ערכים מהרשת: ממלא את השדות בלבד. השמירה נשארת החלטה של אדם.
+  const qbtn = root.querySelector('[data-quote]');
+  const qmsg = root.querySelector('[data-quote-msg]');
+  if (qbtn && group) qbtn.onclick = async () => {
+    qbtn.disabled = true; qbtn.textContent = 'מחפש…';
+    const r = await get(`/api/ai?task=quote&group=${encodeURIComponent(group)}`, { fresh: true });
+    qbtn.disabled = false; qbtn.textContent = 'שלוף ערכים מהרשת';
+    if (!r.ok) {
+      qmsg.innerHTML = r.body?.error === 'no_search'
+        ? 'המנוע הנוכחי אינו יודע לחפש ברשת. הוסף מפתח Gemini בלשונית ההגדרות.'
+        : `השליפה נכשלה: ${esc(r.body?.message || 'שגיאה')}`;
+      return;
+    }
+    let filled = 0;
+    for (const q of r.body.quotes || []) {
+      const tr = root.querySelector(`tr[data-sid="${CSS.escape(q.id)}"]`);
+      if (!tr) continue;
+      tr.querySelector('[data-f="value"]').value = q.value;
+      if (q.asOf) tr.querySelector('[data-f="date"]').value = q.asOf;
+      tr.querySelector('[data-f="source"]').value = q.source || 'חיפוש AI';
+      const cell = tr.querySelector('[data-f="source"]').parentElement;
+      if (!cell.querySelector('a')) {
+        cell.insertAdjacentHTML('beforeend',
+          `<a class="sub" href="${esc(q.url)}" target="_blank" rel="noopener">מקור · ביטחון ${esc(q.confidence || '?')}</a>`);
+      }
+      filled++;
+    }
+    qmsg.innerHTML = filled
+      ? `מולאו ${filled} מתוך ${r.body.asked} שדות. <b>בדוק כל מקור ולחץ שמור בשורה.</b> שום ערך לא נשמר מעצמו.`
+      : 'לא נמצאו ערכים מפורסמים. המודל התבקש לא לנחש, ולכן החזיר ריק.';
+  };
+
   root.querySelectorAll('[data-save]').forEach(btn => {
     btn.onclick = async () => {
       const tr = btn.closest('tr');

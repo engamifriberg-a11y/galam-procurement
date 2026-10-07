@@ -6,13 +6,14 @@
 // התוצאה כבר מוכנה והמשתמש אינו ממתין כלל.
 import { hasDb, kvGet, kvSet } from './_lib/db.js';
 import { fetchNews } from './_lib/news.js';
-import { provider, runTask, callNvidia, nvidiaRaw, nvidiaModels, chemicals, riskPromptGrounded, callStats, briefGroup, pitchItem } from './_lib/scan.js';
+import { provider, runTask, callNvidia, nvidiaRaw, nvidiaModels, chemicals, riskPromptGrounded, callStats, briefGroup, pitchItem, quoteGroup, aiConfig } from './_lib/scan.js';
 
 const TTL_MS = 12 * 3600 * 1000;
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   const prov = provider();
+  const cfg = await aiConfig();
 
   /* ---------- אבחון ---------- */
   if (req.query.models) {
@@ -60,6 +61,19 @@ export default async function handler(req, res) {
     }
   }
 
+  /* ---------- הצעת ערכים חיים לאינדקסים מנוהלים ---------- */
+  if (req.query.task === 'quote') {
+    const g = req.query.group;
+    if (!g) return res.status(400).json({ error: 'missing group' });
+    try {
+      return res.status(200).json(await quoteGroup(g));
+    } catch (e) {
+      const msg = String(e.message || e);
+      const code = msg.startsWith('no_search') ? 400 : msg === 'no_ai_key' ? 503 : 502;
+      return res.status(code).json({ error: msg.startsWith('no_search') ? 'no_search' : 'ai_failed', message: msg });
+    }
+  }
+
   /* ---------- קריאת AI לשאר הלשוניות ---------- */
   // brief = קריאת שוק לקבוצת סדרות. pitch = נימוק לשיחה מול ספק.
   if (req.query.task === 'brief' || req.query.task === 'pitch') {
@@ -74,11 +88,11 @@ export default async function handler(req, res) {
         if (c && Date.now() - new Date(c.at).getTime() < TTL_MS) return res.status(200).json({ ...c, cached: true });
       } catch { /* ממשיכים */ }
     }
-    if (!prov) return res.status(503).json({ error: 'no_ai_key', message: 'לא הוגדר מפתח AI במשתני הסביבה.' });
+    if (!cfg) return res.status(503).json({ error: 'no_ai_key', message: 'לא הוגדר מפתח AI. אפשר להוסיף מפתח Gemini בלשונית ההגדרות.' });
 
     try {
       const out = isBrief ? await briefGroup(id) : await pitchItem(id, req.query.window);
-      const payload = { ...out, provider: prov, model: prov === 'nvidia' ? process.env.NVIDIA_MODEL : undefined };
+      const payload = { ...out, provider: cfg.prov, model: cfg.model, source: cfg.source };
       if (hasDb()) { try { await kvSet(cacheKey, payload); } catch {} }
       return res.status(200).json(payload);
     } catch (e) {
@@ -100,9 +114,9 @@ export default async function handler(req, res) {
     } catch { /* ממשיכים בלי מטמון */ }
   }
 
-  if (!prov) {
+  if (!cfg) {
     return res.status(503).json({ error: 'no_ai_key', task,
-      message: 'לא הוגדר מפתח AI. יש להוסיף NVIDIA_API_KEY, ANTHROPIC_API_KEY או GEMINI_API_KEY במשתני הסביבה ב-Vercel.' });
+      message: 'לא הוגדר מפתח AI. אפשר להוסיף מפתח Gemini בלשונית ההגדרות, או משתנה סביבה ב-Vercel.' });
   }
 
   try {

@@ -83,7 +83,7 @@ registerTab({
     }[active];
 
     host.innerHTML = groupView(market, cfg.groups, cfg);
-    wireInputs(host, rerender);
+    wireInputs(host, rerender, active);
     wireAiPanel(host, `/api/ai?task=brief&group=${active}`);
   }
 });

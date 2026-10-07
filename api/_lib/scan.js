@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { hasDb, kvGet, kvSet } from './db.js';
 import { fetchNews, digest } from './news.js';
 import { analyse } from './analysis.js';
+import { catalog as catalogSeries } from './market.js';
 
 export async function chemicals() {
   return JSON.parse(await readFile(new URL('../../assets/data/chemicals.json', import.meta.url), 'utf8')).items;
@@ -28,6 +29,18 @@ export function provider() {
   if (process.env.ANTHROPIC_API_KEY) return 'anthropic';
   if (process.env.GEMINI_API_KEY) return 'gemini';
   if (process.env.NVIDIA_API_KEY) return 'nvidia';
+  return null;
+}
+
+/* מפתח שהוזן מהממשק גובר על משתני הסביבה, כי הוא ההחלטה המפורשת האחרונה
+   של המשתמש. Gemini מועדף כשהוא קיים, כי יש לו חיפוש Google מובנה. */
+export async function aiConfig() {
+  let saved = null;
+  if (hasDb()) { try { saved = await kvGet('settings:ai'); } catch { /* ממשיכים לסביבה */ } }
+  if (saved?.geminiKey) return { prov: 'gemini', key: saved.geminiKey, model: saved.geminiModel || 'gemini-2.5-flash', search: true, source: 'ממשק' };
+  if (process.env.ANTHROPIC_API_KEY) return { prov: 'anthropic', key: process.env.ANTHROPIC_API_KEY, model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5', search: true, source: 'סביבה' };
+  if (process.env.GEMINI_API_KEY) return { prov: 'gemini', key: process.env.GEMINI_API_KEY, model: process.env.GEMINI_MODEL || 'gemini-2.5-flash', search: true, source: 'סביבה' };
+  if (process.env.NVIDIA_API_KEY) return { prov: 'nvidia', key: process.env.NVIDIA_API_KEY, model: process.env.NVIDIA_MODEL || 'openai/gpt-oss-20b', search: false, source: 'סביבה' };
   return null;
 }
 
@@ -87,15 +100,19 @@ export async function callAnthropic(prompt) {
   return (d.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
 }
 
-export async function callGemini(prompt) {
-  const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`, {
-    method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], tools: [{ google_search: {} }] })
-  });
+export async function callGemini(prompt, cfg = {}) {
+  const model = cfg.model || process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  const key = cfg.key || process.env.GEMINI_API_KEY;
+  const body = { contents: [{ parts: [{ text: prompt }] }] };
+  if (cfg.search !== false) body.tools = [{ google_search: {} }];
+  const r = await withTimeout(52000, 'Gemini', signal => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+    method: 'POST', signal, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body)
+  }));
   if (!r.ok) throw new Error(`gemini ${r.status}: ${(await r.text()).slice(0, 300)}`);
   const d = await r.json();
-  return (d.candidates?.[0]?.content?.parts || []).map(p => p.text).filter(Boolean).join('\n');
+  const out = (d.candidates?.[0]?.content?.parts || []).map(p => p.text).filter(Boolean).join('\n');
+  if (!out) throw new Error(`Gemini החזיר תוכן ריק. סיבת סיום: ${d.candidates?.[0]?.finishReason || 'לא ידועה'}`);
+  return out;
 }
 
 // NVIDIA NIM — תואם OpenAI
@@ -185,14 +202,16 @@ export function extractJson(text) {
 
 /* מריץ משימה שלמה ומחזיר payload מוכן לשמירה במטמון. משמש גם את משימת הרקע. */
 export async function runTask(task) {
-  const prov = provider();
-  if (!prov) throw new Error('no_ai_key');
+  const cfg = await aiConfig();
+  if (!cfg) throw new Error('no_ai_key');
+  const prov = cfg.prov;
   const items = await chemicals();
   let prompt, grounding = null, newsIndex = null;
 
   if (task === 'trend') {
     prompt = trendPrompt(items);
-  } else if (prov === 'nvidia') {
+  } else if (!cfg.search) {
+    // ספק בלי חיפוש מובנה — חייב עוגן כותרות
     const news = await fetchNews({ perQuery: 5, limit: 18 });
     if (!news.items.length) throw new Error('no_news: לא התקבלו כותרות. בלי עוגן אמיתי המודל לא מורץ.');
     grounding = { source: 'Google News RSS', items: news.items.length, queries: news.queries, failed: news.failed };
@@ -203,8 +222,8 @@ export async function runTask(task) {
   }
 
   const text = prov === 'anthropic' ? await callAnthropic(prompt)
-    : prov === 'gemini' ? await callGemini(prompt)
-    : await callNvidia(prompt);
+    : prov === 'gemini' ? await callGemini(prompt, cfg)
+    : await callNvidia(prompt, cfg.model);
 
   const data = extractJson(text);
 
@@ -237,7 +256,7 @@ export async function runTask(task) {
       : 'לא זוהה בכותרות האחרונות אירוע שצפוי לגרום למחסור בכימיקלים של גלעם בישראל.';
   }
 
-  const payload = { task, provider: prov, model: prov === 'nvidia' ? (process.env.NVIDIA_MODEL || 'openai/gpt-oss-20b') : undefined, grounding, at: new Date().toISOString(), data };
+  const payload = { task, provider: prov, model: cfg.model, source: cfg.source, grounding, at: new Date().toISOString(), data };
   if (hasDb()) { try { await kvSet(`ai:${task}`, payload); } catch { /* לא קריטי */ } }
   return payload;
 }
@@ -314,10 +333,49 @@ ${rec.gap == null ? '' : `פער בין מה ששולם למה שהשוק מצד
 }
 
 // טקסט חופשי, לא JSON — הודעת המערכת חייבת להשתנות בהתאם
-async function callByProvider(prompt) {
-  const prov = provider();
-  if (!prov) throw new Error('no_ai_key');
-  if (prov === 'anthropic') return callAnthropic(prompt);
-  if (prov === 'gemini') return callGemini(prompt);
-  return callNvidia(prompt, undefined, { plain: true });
+export async function callByProvider(prompt, { plain = true, search } = {}) {
+  const cfg = await aiConfig();
+  if (!cfg) throw new Error('no_ai_key');
+  if (cfg.prov === 'anthropic') return callAnthropic(prompt);
+  if (cfg.prov === 'gemini') return callGemini(prompt, { ...cfg, search });
+  return callNvidia(prompt, cfg.model, { plain });
+}
+
+
+/* ================= הצעת ערכים לאינדקסים מנוהלים =================
+   זה מה ש"עדכון חי בלחיצת כפתור" באמת אומר לסדרות שאין להן API.
+   המודל מחפש את הערך המפורסם, מחזיר אותו עם מקור, והמערכת רק *מציעה*
+   אותו בשדה ההזנה. אדם מאשר לפני שהוא נכנס לסדרה. אין כתיבה אוטומטית. */
+export async function quoteGroup(groupKey) {
+  const cfg = await aiConfig();
+  if (!cfg) throw new Error('no_ai_key');
+  if (!cfg.search) throw new Error('no_search: הספק הנוכחי אינו יודע לחפש ברשת. יש להזין מפתח Gemini.');
+
+  const defs = await catalogSeries();
+  const wanted = (GROUPS[groupKey]?.groups || [groupKey]);
+  const list = defs.filter(d => wanted.includes(d.group) && d.provider === 'managed');
+  if (!list.length) throw new Error('אין אינדקסים מנוהלים בקבוצה הזו');
+
+  const prompt = `חפש ברשת את הערך המפורסם העדכני ביותר לכל אחד מהמדדים הבאים:
+
+${list.map(d => `- ${d.id} | ${d.he} | יחידה: ${d.unit}${d.note ? ` | ${d.note}` : ''}`).join('\n')}
+
+החזר אך ורק JSON:
+{"quotes":[{"id":"מזהה הסדרה בדיוק כפי שנמסר","value":מספר,"asOf":"YYYY-MM-DD","source":"שם המקור","url":"כתובת","confidence":"low|medium|high"}]}
+
+חוקים מחייבים:
+1. אל תנחש. אם לא מצאת ערך מפורסם למדד — אל תכלול אותו כלל ברשימה.
+2. value חייב להיות המספר ביחידה שצוינה. אל תמיר יחידות.
+3. url חייבת להיות כתובת אמיתית שראית בחיפוש.
+4. confidence נמוך אם הערך ישן מחודש או אם המקור משני.
+בלי טקסט מחוץ ל-JSON.`;
+
+  const text = await callGemini(prompt, { ...cfg, search: true });
+  const data = extractJson(text);
+  const byId = new Map(list.map(d => [d.id, d]));
+  const quotes = (Array.isArray(data.quotes) ? data.quotes : [])
+    .filter(q => byId.has(q.id) && Number.isFinite(Number(q.value)) && q.url)
+    .map(q => ({ ...q, value: Number(q.value), he: byId.get(q.id).he, unit: byId.get(q.id).unit }));
+
+  return { group: groupKey, asked: list.length, quotes, provider: cfg.prov, model: cfg.model, at: new Date().toISOString() };
 }
