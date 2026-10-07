@@ -18,6 +18,9 @@ class El {
   // מחזיר אלמנט רשום אם ה-HTML שנכתב אכן מכיל אותו, כדי לדמות חיפוש בתוך תת-עץ
   querySelector(s) {
     if (s?.startsWith('#') && els.has(s) && this._html.includes(`id="${s.slice(1)}"`)) return els.get(s);
+    // סלקטור לפי מאפיין: מחזירים אלמנט זמני אם הוא אכן קיים ב-HTML שנכתב
+    const attr = s?.match(/^\[([\w-]+)\]$/);
+    if (attr && this._html.includes(attr[1])) return new El(s);
     return null;
   }
   querySelectorAll() { return []; }
@@ -57,9 +60,21 @@ globalThis.fetch = async (url) => {
   const u = String(url);
   const body = u.startsWith('/api/market') ? API_MARKET
     : u.startsWith('/api/prices') ? {}
-    : u.startsWith('/api/ai') ? { error: 'no_ai_key', message: 'test' }
+    : u.startsWith('/api/ai') ? (AI_OK ? AI_PAYLOAD : { error: 'no_ai_key', message: 'test' })
     : JSON.parse(await readFile(join(ROOT, u.replace(/^\//, '')), 'utf8'));
-  return { ok: !u.startsWith('/api/ai'), status: u.startsWith('/api/ai') ? 503 : 200, json: async () => body };
+  const aiFail = u.startsWith('/api/ai') && !AI_OK;
+  return { ok: !aiFail, status: aiFail ? 503 : 200, json: async () => body };
+};
+
+let AI_OK = false;
+const AI_PAYLOAD = {
+  task: 'risk', provider: 'nvidia', model: 'openai/gpt-oss-20b', cached: true, ageHours: 2, stale: false,
+  grounding: { source: 'Google News RSS', items: 18, queries: 12, failed: [] },
+  at: new Date().toISOString(),
+  data: { asOf: '2026-10-07', overall: 'watch', summary: 'סיכום בדיקה.',
+    alerts: [{ chemical: 'Sulfuric Acid 98%', severity: 'high', horizon: '0-3m', israelImpact: 'יש',
+      headline: 'China suspends sulphuric acid exports', detail: 'יצוא סיני הושעה', action: 'לבדוק ספקים מקומיים',
+      refs: [5], sources: ['https://example.com/a'], refTitles: ['Reuters: China suspends sulphuric acid exports'] }] }
 };
 
 /* ---------- ההרצה ---------- */
@@ -86,7 +101,7 @@ rendered.includes('<table') || rendered.includes('class="cards"')
 /שגיאה|לא נטענה/.test(rendered) ? fail('הלשונית החזירה הודעת שגיאה: ' + rendered.slice(0, 200)) : pass('אין שגיאת רינדור');
 
 // כל תת-לשונית בנפרד — הכימיקלים הם בעלי ההיגיון הרב ביותר ולכן הסיכון הגבוה ביותר
-const { tabs } = await import('../assets/js/core/base.js');
+const { tabs, clearCache } = await import('../assets/js/core/base.js');
 const vol = tabs().find(t => t.id === 'volatility');
 for (const sub of ['paper', 'energy', 'fx', 'freight', 'chem', 'risk']) {
   els.get('#subview')._html = '';
@@ -101,5 +116,16 @@ for (const sub of ['paper', 'energy', 'fx', 'freight', 'chem', 'risk']) {
     fail(`תת-לשונית ${sub}: ${e.message}`);
   }
 }
+
+// מסלול ההצלחה של לשונית המשברים, עם נתונים אמיתיים בצורתם
+AI_OK = true;
+clearCache();   // התשובה הקודמת שמורה במטמון הליבה
+els.get('#subview')._html = '';
+await vol.render(els.get('#view'), { sub: 'risk', go: () => {} });
+await new Promise(r => setTimeout(r, 250));
+const riskHtml = els.get('#subview').innerHTML;
+riskHtml.includes('Sulfuric Acid 98%') ? pass('לשונית משברים: התרעה הוצגה') : fail('לשונית משברים: ההתרעה לא הוצגה');
+riskHtml.includes('Reuters: China suspends') ? pass('לשונית משברים: כותרת המקור מקושרת') : fail('לשונית משברים: חסר קישור למקור');
+riskHtml.includes('18 כותרות') || riskHtml.includes('נסרקו 18') ? pass('לשונית משברים: מוצג היקף העיגון') : fail('לשונית משברים: לא מוצג היקף העיגון');
 
 console.log(process.exitCode ? '\nנכשל' : '\nעבר');

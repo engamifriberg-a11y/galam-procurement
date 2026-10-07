@@ -18,7 +18,8 @@ export async function riskView(root, { force = false } = {}) {
     root.innerHTML = `<div class="panel"><div class="pb"><div class="empty">
       <b>הסריקה נכשלה</b>${esc(r.body?.message || r.body?.error || 'שגיאה לא ידועה')}</div>
       <div style="text-align:center"><button class="btn" data-retry>נסה שוב</button></div></div></div>`;
-    root.querySelector('[data-retry]').onclick = () => { clearCache(); riskView(root, { force: true }); };
+    const retry = root.querySelector('[data-retry]');
+    if (retry) retry.onclick = () => { clearCache(); riskView(root, { force: true }); };
     return;
   }
 
@@ -68,7 +69,8 @@ export async function riskView(root, { force = false } = {}) {
       : `<div class="pb"><div class="empty"><b>אין מחסור צפוי בישראל</b>הסריקה לא מצאה אירוע מהותי שצפוי לפגוע באספקת הכימיקלים של גלעם בחודשים הקרובים.</div></div>`}
   </div>`;
 
-  root.querySelector('[data-rescan]').onclick = () => { clearCache(); riskView(root, { force: true }); };
+  const rescan = root.querySelector('[data-rescan]');
+  if (rescan) rescan.onclick = () => { clearCache(); riskView(root, { force: true }); };
 }
 
 function notConfigured() {
