@@ -8,10 +8,18 @@ async function j(url, opts = {}) {
   if (!r.ok) throw new Error(`${r.status} ${url.split('?')[0]}`);
   return r.json();
 }
-async function t(url) {
-  const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 galam-procurement/1.0' } });
-  if (!r.ok) throw new Error(`${r.status} ${url.split('?')[0]}`);
-  return r.text();
+async function t(url, ms = 12000) {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), ms);
+  try {
+    const r = await fetch(url, { signal: ctl.signal, redirect: 'follow',
+      headers: { 'User-Agent': 'Mozilla/5.0 galam-procurement/1.0', accept: 'text/csv,text/plain,*/*' } });
+    if (!r.ok) throw new Error(`${r.status} ${url.split('?')[0]}`);
+    return r.text();
+  } catch (e) {
+    if (e.name === 'AbortError') throw new Error(`חריגת זמן ${ms / 1000}ש׳ מול ${url.split('?')[0]}`);
+    throw e;
+  } finally { clearTimeout(timer); }
 }
 
 // ---------- בנק ישראל: שער יציג רשמי ----------
@@ -74,8 +82,35 @@ async function quote(def) {
 /* FRED — מדדי המחירים ליצרן של ה-BLS האמריקאי. מקור רשמי, חינמי, בלי מפתח,
    עם היסטוריה מלאה. חודשי ולא יומי, ולכן מפגר כחודש — אבל הוא המקור הציבורי
    האמין היחיד למחירי עיסה, קרטון ומשטחים. */
+async function bls(seriesId, fredId, years) {
+  const now = new Date().getFullYear();
+  const body = { seriesid: [fredId], startyear: String(now - years), endyear: String(now) };
+  if (process.env.BLS_API_KEY) body.registrationkey = process.env.BLS_API_KEY;
+  const r = await fetch('https://api.bls.gov/publicAPI/v2/timeseries/data/', {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body)
+  });
+  if (!r.ok) throw new Error(`bls ${r.status}`);
+  const d = await r.json();
+  const rows = d.Results?.series?.[0]?.data || [];
+  const out = [];
+  for (const x of rows) {
+    const m = /^M(\d{2})$/.exec(x.period || '');
+    const v = Number(x.value);
+    if (!m || !Number.isFinite(v)) continue;
+    out.push({ series_id: seriesId, d: `${x.year}-${m[1]}-01`, value: v, source: 'BLS', tier: 'A' });
+  }
+  if (!out.length) throw new Error(`bls ${fredId}: אין תצפיות (${d.message || d.status || ''})`);
+  return out.sort((a, b) => a.d < b.d ? -1 : 1);
+}
+
 export async function fred(fredId, seriesId, { years = 4 } = {}) {
-  const csv = await t(`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${encodeURIComponent(fredId)}`);
+  let csv;
+  try {
+    csv = await t(`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${encodeURIComponent(fredId)}`);
+  } catch (e) {
+    // FRED חוסם או איטי מהענן — אותן סדרות זמינות ישירות מ-BLS
+    return bls(seriesId, fredId, years);
+  }
   const lines = csv.trim().split('\n');
   const cutoff = Date.now() - years * 365 * 864e5;
   const out = [];
