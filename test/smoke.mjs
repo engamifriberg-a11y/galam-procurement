@@ -162,6 +162,22 @@ await vol.render(els.get('#view'), { sub: 'chem', go: () => {} });
 await new Promise(r => setTimeout(r, 200));
 els.get('#subview').innerHTML.includes('data-pitch=')
   ? pass('כפתור נימוק בשורות הכימיקלים') : fail('כפתור נימוק חסר');
+els.get('#subview').innerHTML.includes('data-chemsort')
+  ? pass('בוחר המיון בטבלת הכימיקלים') : fail('בוחר המיון חסר');
+
+// מיון הטונות: ברירת המחדל מהגבוה לנמוך, והיפוך הכיוון הופך את הסדר.
+{
+  const { chemicalsView } = await import(new URL('../assets/js/tabs/volatility/chemicals-view.js', import.meta.url));
+  const mk = (he, tons) => ({ n: he, he, en: he, item: he, origin: 'בדיקה', cur: 'USD', sup: 1, tons, drivers: [] });
+  const chem = { items: [mk('קטן', 5), mk('גדול', 1200), mk('בינוני', 40), mk('ללא כמות', null)] };
+  const names = html => [...html.matchAll(/<td>([^<]+)<span class="sub">/g)].map(m => m[1].trim()).slice(0, 4);
+  const desc = names(chemicalsView({}, chem, {}, new Map(), { win: 'd90', sort: 'tons', dir: -1 }));
+  const asc = names(chemicalsView({}, chem, {}, new Map(), { win: 'd90', sort: 'tons', dir: 1 }));
+  String(desc) === String(['גדול', 'בינוני', 'קטן', 'ללא כמות'])
+    ? pass('מיון טונות מהגבוה לנמוך') : fail('מיון טונות יורד שגוי: ' + desc);
+  String(asc) === String(['קטן', 'בינוני', 'גדול', 'ללא כמות'])
+    ? pass('מיון טונות מהנמוך לגבוה') : fail('מיון טונות עולה שגוי: ' + asc);
+}
 
 // כפתור שליפת הערכים מופיע בלשונית עם אינדקסים מנוהלים
 els.get('#subview')._html = '';

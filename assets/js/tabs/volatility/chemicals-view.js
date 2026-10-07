@@ -6,15 +6,25 @@ import { get } from '../../core/base.js';
 
 const WINDOWS = [['d30', 'חודש'], ['d90', 'רבעון'], ['d365', 'שנה']];
 
+// אפשרויות המיון. ברירת המחדל היא טונות מהגבוה לנמוך — הפריטים הגדולים
+// הם אלה ששווה להתחיל מהם שיחה עם הספק.
+const SORTS = [
+  ['tons:-1', 'טונות — מהגבוה לנמוך'],
+  ['tons:1', 'טונות — מהנמוך לגבוה'],
+  ['rec:-1', 'דחיפות ההמלצה']
+];
+
 export function chemicalsView(market, chem, prices, byId, state) {
   const win = state.win || 'd90';
+  const sort = state.sort || 'tons';
+  const dir = state.dir === 1 ? 1 : -1;
   const rows = chem.items.map(item => {
     const exp = expectedChange(item, byId, win);
     const paid = prices[item.item || String(item.n)] || null;
     const rec = recommend(item, exp, paid);
     const fr = freightPart(item, byId, win);
     return { item, exp, paid, rec, fr };
-  }).sort((a, b) => order(a.rec) - order(b.rec) || b.rec.lev - a.rec.lev);
+  }).sort(comparator(sort, dir));
 
   const asks = rows.filter(r => r.rec.code === 'ask');
   const locks = rows.filter(r => r.rec.code === 'lock');
@@ -31,13 +41,19 @@ export function chemicalsView(market, chem, prices, byId, state) {
     <div class="ph">
       <h2>המלצות קנייה</h2>
       <p>${asks.length} פריטים לפנייה להוזלה · ${locks.length} לנעילת מחיר</p>
-      <span class="right">חלון השוואה:
+      <span class="right">מיון:
+        <select class="inp" data-chemsort style="width:186px;text-align:start">
+          ${SORTS.map(([v, he]) => `<option value="${v}" ${v === `${sort}:${dir}` ? 'selected' : ''}>${he}</option>`).join('')}
+        </select>
+        חלון השוואה:
         ${WINDOWS.map(([k, he]) => `<button class="subtab" data-win="${k}" aria-selected="${k === win}">${he}</button>`).join('')}
       </span>
     </div>
     <div class="tblwrap"><table>
       <thead><tr>
-        <th>כימיקל</th><th class="num">טון/שנה</th><th>ספקים</th><th>הובלה</th>
+        <th>כימיקל</th>
+        <th class="num" data-sort="tons" title="לחיצה מחליפה בין מהגבוה לנמוך ולהפך">טון/שנה ${arrow(sort, dir)}</th>
+        <th>ספקים</th><th>הובלה</th>
         <th class="num">הובלה ${esc(label(win))}</th><th class="num">מנועי עלות</th><th class="num">מחיר ששולם</th>
         <th class="num">פער</th><th class="num">מיקוח</th><th>המלצה לקניין</th><th>נימוק לשיחה</th>
       </tr></thead>
@@ -56,6 +72,22 @@ export function chemicalsView(market, chem, prices, byId, state) {
 
 const label = w => ({ d30: 'חודש', d90: 'רבעון', d365: 'שנה' }[w] || w);
 const order = r => ({ ask: 0, lock: 1, wait: 2, hold: 3, quiet: 4, nodata: 5 }[r.code] ?? 9);
+
+// מיון דחיפות: ההמלצות הבוערות למעלה, ובתוך אותה המלצה — עוצמת המיקוח.
+const byRec = (a, b) => order(a.rec) - order(b.rec) || b.rec.lev - a.rec.lev;
+
+function comparator(sort, dir) {
+  if (sort !== 'tons') return byRec;
+  // פריט בלי כמות מוגדרת נשאר למטה בשני הכיוונים, כדי שלא יתפוס את הראש.
+  return (a, b) => {
+    const x = Number.isFinite(a.item.tons) ? a.item.tons : null;
+    const y = Number.isFinite(b.item.tons) ? b.item.tons : null;
+    if (x == null || y == null) return (x == null) - (y == null) || byRec(a, b);
+    return (x - y) * dir || byRec(a, b);
+  };
+}
+
+const arrow = (sort, dir) => `<span class="ar">${sort === 'tons' ? (dir > 0 ? '▲' : '▼') : ''}</span>`;
 
 function rowHtml({ item, exp, paid, rec, fr }) {
   const paidChg = (paid && Number.isFinite(paid.prev) && paid.prev > 0) ? (paid.price - paid.prev) / paid.prev * 100 : null;
@@ -95,6 +127,20 @@ function priceRow(item, paid) {
 
 export function wireChemicals(root, state, rerender) {
   root.querySelectorAll('[data-win]').forEach(b => b.onclick = () => { state.win = b.dataset.win; rerender(); });
+
+  const sel = root.querySelector('[data-chemsort]');
+  if (sel) sel.onchange = () => {
+    const [k, d] = sel.value.split(':');
+    state.sort = k; state.dir = Number(d) === 1 ? 1 : -1;
+    rerender();
+  };
+
+  // לחיצה על כותרת הטונות: אם זה כבר המיון הפעיל — היפוך כיוון, אחרת מעבר אליו.
+  root.querySelectorAll('th[data-sort="tons"]').forEach(th => th.onclick = () => {
+    state.dir = state.sort === 'tons' ? (state.dir === 1 ? -1 : 1) : -1;
+    state.sort = 'tons';
+    rerender();
+  });
 
   // נימוק לשיחה מול הספק. המודל מקבל את המספרים של השורה ומנסח מהם בלבד.
   root.querySelectorAll('[data-pitch]').forEach(btn => {

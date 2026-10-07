@@ -20,7 +20,8 @@ const SUBS = [
   { id: 'risk', he: 'משברים ומחסור' }
 ];
 
-const state = { win: 'd90' };
+// sort/dir שולטים על טבלת הכימיקלים. ברירת המחדל: טונות מהגבוה לנמוך.
+const state = { win: 'd90', sort: 'tons', dir: -1 };
 
 registerTab({
   id: 'volatility',
