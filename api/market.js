@@ -31,7 +31,10 @@ export default async function handler(req, res) {
       refreshed = { ok: points.length, failed, at: new Date().toISOString(), stored: hasDb() };
     }
 
-    return res.status(200).json({ series: await buildSeries(), refreshed, db: hasDb(), at: new Date().toISOString() });
+    let series = await buildSeries();
+    // מצב תמציתי: בלי מערכי ההיסטוריה, לבדיקות ולניטור
+    if (req.query.brief) series = series.map(({ hist, ...rest }) => rest);
+    return res.status(200).json({ series, refreshed, db: hasDb(), at: new Date().toISOString() });
   } catch (e) {
     console.error(e);
     return res.status(500).json({ error: String(e.message || e) });
