@@ -34,14 +34,23 @@ export async function db() {
   return sql;
 }
 
-export async function putPoints(points) {
+/* mode 'upsert' — ערך חדש גובר. ברירת המחדל, למשיכה יומית ולהזנה ידנית.
+   mode 'fill'   — לא נוגע בנקודה קיימת. למשיכת היסטוריה, שלא תדרוס מקור
+                   מדויק יותר כמו השער היציג של בנק ישראל בערך של ECB. */
+export async function putPoints(points, { mode = 'upsert' } = {}) {
   if (!points.length) return 0;
   const sql = await db();
   for (const p of points) {
-    await sql`INSERT INTO series_point (series_id, d, value, source, tier)
-              VALUES (${p.series_id}, ${p.d}, ${p.value}, ${p.source || null}, ${p.tier || null})
-              ON CONFLICT (series_id, d) DO UPDATE
-                SET value = EXCLUDED.value, source = EXCLUDED.source, tier = EXCLUDED.tier`;
+    if (mode === 'fill') {
+      await sql`INSERT INTO series_point (series_id, d, value, source, tier)
+                VALUES (${p.series_id}, ${p.d}, ${p.value}, ${p.source || null}, ${p.tier || null})
+                ON CONFLICT (series_id, d) DO NOTHING`;
+    } else {
+      await sql`INSERT INTO series_point (series_id, d, value, source, tier)
+                VALUES (${p.series_id}, ${p.d}, ${p.value}, ${p.source || null}, ${p.tier || null})
+                ON CONFLICT (series_id, d) DO UPDATE
+                  SET value = EXCLUDED.value, source = EXCLUDED.source, tier = EXCLUDED.tier`;
+    }
   }
   return points.length;
 }

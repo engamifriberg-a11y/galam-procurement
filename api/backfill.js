@@ -16,7 +16,7 @@ export default async function handler(req, res) {
     const { points, failed } = await backfill(defs, { range: req.query.range || '2y' });
     let stored = 0;
     for (let i = 0; i < points.length; i += 400) {
-      stored += await putPoints(points.slice(i, i + 400));
+      stored += await putPoints(points.slice(i, i + 400), { mode: 'fill' });
     }
     const bySeries = {};
     for (const p of points) bySeries[p.series_id] = (bySeries[p.series_id] || 0) + 1;
