@@ -55,7 +55,7 @@ ${items.map(i => `- ${i.en} (${i.he}), מקור: ${i.origin}, ${i.tons} טון �
 2. בשדה refs ציין את מספרי הכותרות שעליהן ההתרעה מבוססת. התרעה בלי refs אסורה.
 3. אם כותרת אינה רלוונטית לכימיקלים של גלעם או לאספקה לישראל — התעלם ממנה.
 4. אם אין בכותרות אירוע מהותי, החזר alerts ריק ו-summary שאומר במפורש שלא מזוהה מחסור צפוי בישראל. זו תשובה לגיטימית ואף רצויה.
-5. אל תמציא מספרים, אחוזים או תאריכים שאינם בכותרות.
+5. אל תמציא מספרים, אחוזים או תאריכים שאינם בכותרות.\n6. החזר לכל היותר שש התרעות, הדחופות ביותר. detail עד שתי שורות.
 
 החזר אך ורק JSON תקין במבנה: ${JSON_SHAPE}
 בלי טקסט מחוץ ל-JSON.`;
@@ -122,7 +122,9 @@ async function callNvidia(prompt) {
       top_p: 0.9,
       max_tokens: 3000,
       messages: [
-        { role: 'system', content: 'אתה אנליסט רכש. אתה מחזיר JSON תקין בלבד, בלי הסברים ובלי גדרות קוד. אינך ממציא עובדות, מספרים או מקורות.' },
+        // "detailed thinking off" מכבה את שרשרת החשיבה במשפחת Nemotron.
+        // בלעדיה המודל מייצר אלפי טוקני הגיון וחורג ממגבלת הזמן של הפונקציה.
+        { role: 'system', content: 'detailed thinking off\n\nאתה אנליסט רכש. אתה מחזיר JSON תקין בלבד, בלי הסברים, בלי שרשרת חשיבה ובלי גדרות קוד. אינך ממציא עובדות, מספרים או מקורות.' },
         { role: 'user', content: prompt }
       ]
     })
@@ -166,6 +168,10 @@ export default async function handler(req, res) {
       return res.status(200).json({ step: 'news', ms: Date.now() - t0, items: news.items.length, failed: news.failed, sample: news.items.slice(0, 5) });
     } catch (e) { return res.status(502).json({ step: 'news', error: String(e.message) }); }
   }
+  if (req.query.step === 'last') {
+    try { return res.status(200).json(await kvGet('ai:lastrun') || { empty: true }); }
+    catch (e) { return res.status(500).json({ error: String(e.message) }); }
+  }
   if (req.query.step === 'ping') {
     try {
       const t0 = Date.now();
@@ -183,10 +189,14 @@ export default async function handler(req, res) {
       const prompt = riskPromptGrounded(await chemicals(), news.items);
       const t1 = Date.now();
       const out = await callNvidia(prompt);
-      return res.status(200).json({ step: 'bench', model: process.env.NVIDIA_MODEL, newsMs: tNews,
-        modelMs: Date.now() - t1, promptChars: prompt.length, outChars: out.length, head: out.slice(0, 250), tail: out.slice(-250) });
+      const r = { step: 'bench', model: process.env.NVIDIA_MODEL, newsMs: tNews,
+        modelMs: Date.now() - t1, promptChars: prompt.length, outChars: out.length, head: out.slice(0, 250), tail: out.slice(-250) };
+      if (hasDb()) { try { await kvSet('ai:lastrun', r); } catch {} }
+      return res.status(200).json(r);
     } catch (e) {
-      return res.status(502).json({ step: 'bench', model: process.env.NVIDIA_MODEL, totalMs: Date.now() - t0, error: String(e.message) });
+      const r = { step: 'bench', model: process.env.NVIDIA_MODEL, totalMs: Date.now() - t0, error: String(e.message) };
+      if (hasDb()) { try { await kvSet('ai:lastrun', r); } catch {} }
+      return res.status(502).json(r);
     }
   }
 
@@ -240,11 +250,13 @@ export default async function handler(req, res) {
       }).filter(a => a.refs.length);
     }
 
+    if (hasDb()) { try { await kvSet('ai:lastrun', { task, provider: prov, ok: true, at: new Date().toISOString(), alerts: data.alerts?.length ?? null, outChars: text.length }); } catch {} }
     const payload = { task, provider: prov, model: prov === 'nvidia' ? (process.env.NVIDIA_MODEL || 'meta/llama-3.3-70b-instruct') : undefined, grounding, at: new Date().toISOString(), data };
     if (hasDb()) { try { await kvSet(cacheKey, payload); } catch { /* לא קריטי */ } }
     return res.status(200).json(payload);
   } catch (e) {
     console.error(e);
+    if (hasDb()) { try { await kvSet('ai:lastrun', { task, provider: prov, ok: false, at: new Date().toISOString(), error: String(e.message || e) }); } catch {} }
     return res.status(502).json({ error: 'ai_failed', message: String(e.message || e), task, provider: prov });
   }
 }
