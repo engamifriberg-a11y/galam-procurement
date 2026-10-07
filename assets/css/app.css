@@ -103,6 +103,14 @@ main{padding:4px 0 56px; min-height:60vh}
 .spark path{fill:none; stroke:var(--accent); stroke-width:1.6; vector-effect:non-scaling-stroke}
 .up{color:var(--up)} .down{color:var(--down)} .flat{color:var(--ink3)}
 
+.card.click{cursor:pointer}
+.card.click:hover{background:var(--surface2)}
+.card .nm .dot{width:9px; height:9px; border-radius:50%; display:inline-block; flex:none}
+.search-row .scope{padding:12px 12px; border:1px solid var(--line); border-radius:8px; background:var(--surface2)}
+table.contacts td{padding:11px 12px; vertical-align:top}
+table.contacts .nm{display:block; font-weight:500; line-height:1.35}
+table.contacts a.sub{display:block}
+.pill.ok{color:var(--down); border-color:color-mix(in srgb,var(--down) 40%,transparent); background:color-mix(in srgb,var(--down) 10%,transparent)}
 .tier{display:inline-block; width:8px; height:8px; border-radius:2px; flex:none}
 .tier.a{background:var(--accent)} .tier.b{background:var(--c5)} .tier.c{background:var(--violet)}
 .proxy{font-style:normal; font-size:10.5px; color:var(--warn); border:1px solid color-mix(in srgb,var(--warn) 45%,transparent);
@@ -131,9 +139,14 @@ td.num,th.num{text-align:end; white-space:nowrap}
 /* בר נתונים */
 .bars{display:flex; flex-direction:column; gap:9px}
 .brow{display:grid; grid-template-columns:minmax(120px,32%) 1fr auto; align-items:center; gap:10px; font-size:13.5px}
+/* שורות לחיצות חייבות להישאר div. בתוך button הדפדפן עוטף את הילדים בתיבה
+   אנונימית, גובה באחוזים לא נפתר, והמילוי הצבעוני נעלם. */
+.brow.click{cursor:pointer; border-radius:6px; padding:2px 4px; margin:-2px -4px}
+.brow.click:hover{background:var(--surface2)}
+.brow.click:hover .blabel{color:var(--accent)}
 .blabel{color:var(--ink2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
-.btrack{background:var(--line2); border-radius:3px; height:15px; overflow:hidden}
-.bfill{height:100%; border-radius:3px; background:var(--accent)}
+.btrack{background:var(--line2); border-radius:3px; height:15px; overflow:hidden; display:block}
+.bfill{display:block; height:15px; min-width:3px; border-radius:3px; background:var(--accent)}
 .bval{min-width:76px; display:inline-flex; justify-content:flex-end; gap:8px; align-items:baseline; white-space:nowrap}
 .bval i{color:var(--ink3); font-style:normal; font-size:12px}
 

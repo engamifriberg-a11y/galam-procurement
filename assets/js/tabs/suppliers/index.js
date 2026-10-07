@@ -32,17 +32,13 @@ export async function loadSuppliers(fresh = false) {
   return { rows, version: r.body.version, origin: r.body.origin, uploadedAt: r.body.uploadedAt };
 }
 
-/* דירוג הסיכון. הכלל של גלעם: סקור מתחת ל-15 הוא ספק מסוכן.
-   לצידו נבדק גם הפער מול ממוצע הענף, כי ספק עם 30 בענף שממוצעו 42
-   הוא חלש יחסית גם אם הוא מעל הרף המוחלט. */
+/* דירוג הסיכון לפי הסקור בלבד, כפי שהוגדר: מתחת ל-15 ספק מסוכן.
+   הסקור הענפי מוצג לצידו כהשוואה, אך אינו משנה את הדירוג. */
 export function riskOf(d) {
   if (d.scr == null) return { code: 'none', he: 'לא נסקר', cls: 'low', rank: 3 };
   if (d.scr < 15) return { code: 'high', he: 'מסוכן', cls: 'high', rank: 0 };
-  const gap = d.ind == null ? null : d.scr - d.ind;
-  if (gap != null && gap < -8) return { code: 'weak', he: 'חלש מהענף', cls: 'medium', rank: 1 };
   if (d.scr < 30) return { code: 'watch', he: 'במעקב', cls: 'medium', rank: 1 };
-  if (gap != null && gap < 0) return { code: 'under', he: 'מתחת לענף', cls: 'low', rank: 2 };
-  return { code: 'ok', he: 'תקין', cls: 'low', rank: 4 };
+  return { code: 'ok', he: 'תקין', cls: 'ok', rank: 2 };
 }
 
 export function applyFilters(rows) {

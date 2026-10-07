@@ -204,8 +204,10 @@ else {
   await sup.render(els.get('#view'), { sub: 'risk', go: () => {} });
   await new Promise(r => setTimeout(r, 250));
   const rh = els.get('#subview').innerHTML;
-  rh.includes('data-bucket') ? pass('גרף הסיכון לחיץ') : fail('גרף הסיכון אינו לחיץ');
+  rh.includes('data-risk="high"') && rh.includes('class="bfill"') ? pass('גרף הסיכון לחיץ וצבעוני') : fail('גרף הסיכון אינו לחיץ או חסר מילוי');
   rh.includes('מתחת ל-15') ? pass('רף הסיכון 15 מוצג') : fail('רף הסיכון חסר');
+  /background:var\(--up\)/.test(rh) ? pass('מילוי צבעוני בעמודות') : fail('אין צבע בעמודות');
+  !/<button class="brow/.test(rh) ? pass('שורות הגרף אינן button') : fail('שורת גרף עטופה ב-button, המילוי ייעלם');
 }
 
 console.log(process.exitCode ? '\nנכשל' : '\nעבר');

@@ -19,12 +19,11 @@ export function termsView(data) {
       <p>${terms.length} תנאים שונים · ממוצע ימי אשראי ${avg == null ? '—' : avg.toFixed(0)}</p></div>
     <div class="pb"><div class="bars">${terms.slice(0, 14).map(([k, v]) => {
       const max = terms[0][1];
-      return `<button class="brow" data-jump="pt" data-val="${esc(k)}"
-        style="background:none;border:0;padding:0;width:100%;text-align:start;color:inherit;cursor:pointer">
+      return `<div class="brow click" data-jump="pt" data-val="${esc(k)}" role="button" tabindex="0">
         <span class="blabel" title="${esc(k)}">${esc(k)}</span>
-        <span class="btrack"><span class="bfill" style="width:${Math.max(1.5, v / max * 100)}%"></span></span>
+        <span class="btrack"><span class="bfill" style="width:${Math.max(1.5, v / max * 100).toFixed(1)}%;background:var(--c2)"></span></span>
         <span class="bval">${nf(v, 0)}<i>${(v / rows.length * 100).toFixed(1)}%</i></span>
-      </button>`;
+      </div>`;
     }).join('')}</div></div>
   </div>
 

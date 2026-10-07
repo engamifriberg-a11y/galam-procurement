@@ -47,12 +47,11 @@ const panel = (g, rows) => `<div class="panel">
 function bars(items, total, jumpKey) {
   const max = Math.max(1, ...items.map(i => i[1]));
   return `<div class="bars">${items.map(([k, v]) => `
-    <button class="brow" ${jumpKey ? `data-jump="${jumpKey}" data-val="${esc(k)}"` : 'disabled'}
-      style="background:none;border:0;padding:0;width:100%;text-align:start;color:inherit;cursor:${jumpKey ? 'pointer' : 'default'}">
+    <div class="brow ${jumpKey ? 'click' : ''}" ${jumpKey ? `data-jump="${jumpKey}" data-val="${esc(k)}" role="button" tabindex="0"` : ''}>
       <span class="blabel" title="${esc(k)}">${esc(k)}</span>
-      <span class="btrack"><span class="bfill" style="width:${Math.max(1.5, v / max * 100)}%"></span></span>
+      <span class="btrack"><span class="bfill" style="width:${Math.max(1.5, v / max * 100).toFixed(1)}%"></span></span>
       <span class="bval">${nf(v, 0)}<i>${(v / total * 100).toFixed(1)}%</i></span>
-    </button>`).join('')}</div>`;
+    </div>`).join('')}</div>`;
 }
 
 export function wireSegment(root, jump) {
