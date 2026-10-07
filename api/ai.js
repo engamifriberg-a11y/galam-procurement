@@ -55,7 +55,8 @@ ${items.map(i => `- ${i.en} (${i.he}), מקור: ${i.origin}, ${i.tons} טון �
 2. בשדה refs ציין את מספרי הכותרות שעליהן ההתרעה מבוססת. התרעה בלי refs אסורה.
 3. אם כותרת אינה רלוונטית לכימיקלים של גלעם או לאספקה לישראל — התעלם ממנה.
 4. אם אין בכותרות אירוע מהותי, החזר alerts ריק ו-summary שאומר במפורש שלא מזוהה מחסור צפוי בישראל. זו תשובה לגיטימית ואף רצויה.
-5. אל תמציא מספרים, אחוזים או תאריכים שאינם בכותרות.\n6. החזר לכל היותר שש התרעות, הדחופות ביותר. detail עד שתי שורות.
+5. אל תמציא מספרים, אחוזים או תאריכים שאינם בכותרות.
+6. קיצור הוא חובה: לכל היותר חמש התרעות, הדחופות בלבד. summary עד שתי שורות. detail משפט אחד. action משפט אחד.
 
 החזר אך ורק JSON תקין במבנה: ${JSON_SHAPE}
 בלי טקסט מחוץ ל-JSON.`;
@@ -120,7 +121,7 @@ async function callNvidia(prompt, override) {
       model,
       temperature: 0.2,
       top_p: 0.9,
-      max_tokens: 3000,
+      max_tokens: 4096,
       messages: [
         // "detailed thinking off" מכבה את שרשרת החשיבה במשפחת Nemotron.
         // בלעדיה המודל מייצר אלפי טוקני הגיון וחורג ממגבלת הזמן של הפונקציה.
@@ -144,9 +145,24 @@ async function nvidiaModels() {
 function extractJson(text) {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   const raw = fenced ? fenced[1] : text;
-  const start = raw.indexOf('{'), end = raw.lastIndexOf('}');
-  if (start < 0 || end < 0) throw new Error('המודל לא החזיר JSON: ' + text.slice(0, 200));
-  return JSON.parse(raw.slice(start, end + 1));
+  const start = raw.indexOf('{');
+  if (start < 0) throw new Error('המודל לא החזיר JSON: ' + text.slice(0, 200));
+  const body = raw.slice(start);
+
+  try { return JSON.parse(body.slice(0, body.lastIndexOf('}') + 1)); } catch { /* ננסה לשחזר */ }
+
+  // פלט שנקטע באמצע: חותכים לאובייקט השלם האחרון בתוך alerts וסוגרים את המבנה
+  const lastComplete = body.lastIndexOf('},');
+  if (lastComplete > 0) {
+    const candidate = body.slice(0, lastComplete + 1) + ']}';
+    try { const o = JSON.parse(candidate); o._truncated = true; return o; } catch { /* נמשיך */ }
+  }
+  const openArr = body.indexOf('"alerts"');
+  if (openArr > 0) {
+    const candidate = body.slice(0, openArr) + '"alerts":[]}';
+    try { const o = JSON.parse(candidate.replace(/,\s*"alerts":\[\]\}$/, ',"alerts":[]}')); o._truncated = true; return o; } catch { /* נמשיך */ }
+  }
+  throw new Error('JSON לא תקין מהמודל (' + text.length + ' תווים): ' + text.slice(-160));
 }
 
 /* ---------- handler ---------- */
