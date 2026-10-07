@@ -1,10 +1,26 @@
 {
   "functions": {
-    "api/market.js": { "maxDuration": 30 },
-    "api/ai.js": { "maxDuration": 60 },
-    "api/cron/snapshot.js": { "maxDuration": 60 }
+    "api/market.js": {
+      "maxDuration": 30
+    },
+    "api/ai.js": {
+      "maxDuration": 60
+    },
+    "api/cron/snapshot.js": {
+      "maxDuration": 60
+    },
+    "api/cron/scan.js": {
+      "maxDuration": 60
+    }
   },
   "crons": [
-    { "path": "/api/cron/snapshot", "schedule": "20 4 * * *" }
+    {
+      "path": "/api/cron/snapshot",
+      "schedule": "20 4 * * *"
+    },
+    {
+      "path": "/api/cron/scan",
+      "schedule": "35 4 * * *"
+    }
   ]
 }

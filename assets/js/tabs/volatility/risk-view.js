@@ -5,7 +5,9 @@ import { esc, get, clearCache, loading } from '../../core/base.js';
 const STATE = { he: { calm: 'רגוע', watch: 'במעקב', strained: 'מתוח' } };
 
 export async function riskView(root, { force = false } = {}) {
-  root.innerHTML = loading('סורק מקורות חדשותיים ותעשייתיים');
+  root.innerHTML = loading(force
+    ? 'מריץ סריקה חדשה. המודל קורא עשרות כותרות ומסווג אותן — זה לוקח עד דקה.'
+    : 'טוען את הסריקה האחרונה');
   const r = await get(`/api/ai?task=risk${force ? '&force=1' : ''}`, { fresh: force });
 
   if (r.status === 503 && r.body?.error === 'no_ai_key') {
@@ -32,7 +34,7 @@ export async function riskView(root, { force = false } = {}) {
     ומסווג אותן בלבד, וכל התרעה חייבת להפנות לכותרת ממשית. התרעה בלי עוגן נפסלת אוטומטית.
     הסריקה מפנה את תשומת לב הקניין, לא מחליפה אישור מול הספק.
     ${g ? `נסרקו ${g.items} כותרות מ-${g.queries} שאילתות ב-${esc(g.source)}.` : ''}
-    ${r.body.cached ? 'התוצאה מהמטמון.' : ''}
+    ${r.body.cached ? `התוצאה מהסריקה האחרונה${Number.isFinite(r.body.ageHours) ? `, לפני ${r.body.ageHours} שעות` : ''}${r.body.stale ? ' — ישנה, כדאי לסרוק מחדש' : ''}.` : ''}
     נסרק ${esc(r.body.at?.slice(0, 16).replace('T', ' ') || '')} · ${esc(r.body.provider || '')}${r.body.model ? ' · ' + esc(r.body.model) : ''}</div>
   </div>
 
@@ -43,6 +45,7 @@ export async function riskView(root, { force = false } = {}) {
       <span class="right">
         <span class="pill ${d.overall === 'strained' ? 'high' : d.overall === 'watch' ? 'medium' : 'low'}">${esc(STATE.he[d.overall] || d.overall || '—')}</span>
         <button class="btn sm" data-rescan>סריקה מחדש</button>
+        <span class="sub">סריקה אוטומטית רצה כל בוקר</span>
       </span>
     </div>
     <div class="pb">${esc(d.summary || 'אין סיכום.')}</div>
