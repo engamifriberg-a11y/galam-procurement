@@ -6,7 +6,7 @@
 // התוצאה כבר מוכנה והמשתמש אינו ממתין כלל.
 import { hasDb, kvGet, kvSet } from './_lib/db.js';
 import { fetchNews } from './_lib/news.js';
-import { provider, runTask, callNvidia, nvidiaRaw, nvidiaModels, chemicals, riskPromptGrounded, callStats, briefGroup, pitchItem, quoteGroup, aiConfig } from './_lib/scan.js';
+import { provider, runTask, callNvidia, nvidiaRaw, nvidiaModels, chemicals, riskPromptGrounded, callStats, briefGroup, pitchItem, quoteGroup, aiConfig, aiConfigs, geminiModels } from './_lib/scan.js';
 
 const TTL_MS = 12 * 3600 * 1000;
 
@@ -20,6 +20,14 @@ export default async function handler(req, res) {
     if (prov !== 'nvidia') return res.status(400).json({ error: 'models listing is NVIDIA-only', provider: prov });
     try { return res.status(200).json({ provider: 'nvidia', models: await nvidiaModels() }); }
     catch (e) { return res.status(502).json({ error: String(e.message) }); }
+  }
+  if (req.query.step === 'gmodels') {
+    try { return res.status(200).json({ models: await geminiModels() }); }
+    catch (e) { return res.status(502).json({ error: String(e.message) }); }
+  }
+  if (req.query.step === 'providers') {
+    const list = await aiConfigs();
+    return res.status(200).json({ order: list.map(c => ({ provider: c.prov, model: c.model, search: c.search, source: c.source })) });
   }
   if (req.query.step === 'last') {
     try { return res.status(200).json(await kvGet('ai:lastrun') || { empty: true }); }

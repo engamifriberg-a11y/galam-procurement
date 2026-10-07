@@ -34,6 +34,35 @@ export function provider() {
 
 /* מפתח שהוזן מהממשק גובר על משתני הסביבה, כי הוא ההחלטה המפורשת האחרונה
    של המשתמש. Gemini מועדף כשהוא קיים, כי יש לו חיפוש Google מובנה. */
+export async function aiConfigs() {
+  const out = [];
+  let saved = null;
+  if (hasDb()) { try { saved = await kvGet('settings:ai'); } catch { /* ממשיכים לסביבה */ } }
+  if (saved?.geminiKey) out.push({ prov: 'gemini', key: saved.geminiKey, model: saved.geminiModel || 'gemini-3.8-flash', search: true, source: 'ממשק' });
+  if (process.env.ANTHROPIC_API_KEY) out.push({ prov: 'anthropic', key: process.env.ANTHROPIC_API_KEY, model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5', search: true, source: 'סביבה' });
+  if (process.env.GEMINI_API_KEY) out.push({ prov: 'gemini', key: process.env.GEMINI_API_KEY, model: process.env.GEMINI_MODEL || 'gemini-3.8-flash', search: true, source: 'סביבה' });
+  if (process.env.NVIDIA_API_KEY) out.push({ prov: 'nvidia', key: process.env.NVIDIA_API_KEY, model: process.env.NVIDIA_MODEL || 'openai/gpt-oss-20b', search: false, source: 'סביבה' });
+  return out;
+}
+
+/* ספק אחד נופל, האתר לא. מנסים לפי סדר עדיפות וממשיכים הלאה בכישלון. */
+export async function withFallback(run) {
+  const cfgs = await aiConfigs();
+  if (!cfgs.length) throw new Error('no_ai_key');
+  const errors = [];
+  for (const cfg of cfgs) {
+    try {
+      const out = await run(cfg);
+      return { out, cfg, fallbackFrom: errors.length ? errors.map(e => e.prov) : null, errors };
+    } catch (e) {
+      errors.push({ prov: cfg.prov, model: cfg.model, error: String(e.message || e) });
+    }
+  }
+  const err = new Error(errors.map(e => `${e.prov}: ${e.error}`).join(' | '));
+  err.errors = errors;
+  throw err;
+}
+
 export async function aiConfig() {
   let saved = null;
   if (hasDb()) { try { saved = await kvGet('settings:ai'); } catch { /* ממשיכים לסביבה */ } }
@@ -228,8 +257,11 @@ export function extractJson(text) {
 
 /* מריץ משימה שלמה ומחזיר payload מוכן לשמירה במטמון. משמש גם את משימת הרקע. */
 export async function runTask(task) {
-  const cfg = await aiConfig();
-  if (!cfg) throw new Error('no_ai_key');
+  const res = await withFallback(cfg => runTaskWith(task, cfg));
+  return { ...res.out, fallbackFrom: res.fallbackFrom };
+}
+
+async function runTaskWith(task, cfg) {
   const prov = cfg.prov;
   const items = await chemicals();
   let prompt, grounding = null, newsIndex = null;
@@ -329,8 +361,8 @@ ${missing.length ? `\nסדרות בלי נתון: ${missing.join(', ')}` : ''}
 
 חוקים: השתמש אך ורק במספרים שלמעלה. אל תוסיף מחירים, תחזיות מספריות או אירועים שאינם כאן. עד 60 מילים בסך הכל. החזר טקסט בלבד, בלי JSON.`;
 
-  const text = await callByProvider(prompt);
-  return { group: key, he: cfg.he, text: text.trim(), basedOn: withData.length, missing: missing.length, at: new Date().toISOString() };
+  const { text, cfg: used, fallbackFrom } = await callByProvider(prompt);
+  return { group: key, he: cfg.he, text: text.trim(), provider: used.prov, model: used.model, fallbackFrom, basedOn: withData.length, missing: missing.length, at: new Date().toISOString() };
 }
 
 export async function pitchItem(key, window = 'd90') {
@@ -354,17 +386,18 @@ ${rec.gap == null ? '' : `פער בין מה ששולם למה שהשוק מצד
 
 כתוב בעברית שני משפטים בלבד: הטיעון שהקניין יאמר לספק, ואחריו נקודת התורפה הצפויה בתשובת הספק וכיצד להתמודד איתה. השתמש רק במספרים שלמעלה. בלי פתיח, בלי כותרות, בלי רשימות. עד 55 מילים.`;
 
-  const text = await callByProvider(prompt);
-  return { key: String(key), item: item.he || item.en, rec: rec.code, text: text.trim(), at: new Date().toISOString() };
+  const { text, cfg: used, fallbackFrom } = await callByProvider(prompt);
+  return { key: String(key), item: item.he || item.en, rec: rec.code, text: text.trim(), provider: used.prov, model: used.model, fallbackFrom, at: new Date().toISOString() };
 }
 
 // טקסט חופשי, לא JSON — הודעת המערכת חייבת להשתנות בהתאם
 export async function callByProvider(prompt, { plain = true, search } = {}) {
-  const cfg = await aiConfig();
-  if (!cfg) throw new Error('no_ai_key');
-  if (cfg.prov === 'anthropic') return callAnthropic(prompt);
-  if (cfg.prov === 'gemini') return callGemini(prompt, { ...cfg, search });
-  return callNvidia(prompt, cfg.model, { plain });
+  const { out, cfg, fallbackFrom } = await withFallback(async cfg => {
+    if (cfg.prov === 'anthropic') return callAnthropic(prompt);
+    if (cfg.prov === 'gemini') return callGemini(prompt, { ...cfg, search });
+    return callNvidia(prompt, cfg.model, { plain });
+  });
+  return { text: out, cfg, fallbackFrom };
 }
 
 
@@ -404,4 +437,27 @@ ${list.map(d => `- ${d.id} | ${d.he} | יחידה: ${d.unit}${d.note ? ` | ${d.n
     .map(q => ({ ...q, value: Number(q.value), he: byId.get(q.id).he, unit: byId.get(q.id).unit }));
 
   return { group: groupKey, asked: list.length, quotes, provider: cfg.prov, model: cfg.model, at: new Date().toISOString() };
+}
+
+
+export async function geminiModels(key) {
+  const k = key || process.env.GEMINI_API_KEY;
+  if (!k) throw new Error('אין מפתח Gemini');
+  const base = 'https://generativelanguage.googleapis.com/v1beta/models?pageSize=200';
+  const attempts = k.startsWith('AQ.')
+    ? [{ 'x-goog-api-key': k }, { authorization: `Bearer ${k}` }, null]
+    : [null, { 'x-goog-api-key': k }];
+  let last = null;
+  for (const extra of attempts) {
+    const url = extra ? base : `${base}&key=${encodeURIComponent(k)}`;
+    const r = await fetch(url, { headers: { ...(extra || {}) } });
+    if (r.ok) {
+      const d = await r.json();
+      return (d.models || [])
+        .filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
+        .map(m => m.name.replace('models/', ''));
+    }
+    last = { status: r.status, text: (await r.text()).slice(0, 200) };
+  }
+  throw new Error(`gemini models ${last.status}: ${last.text}`);
 }
