@@ -1,5 +1,0 @@
-{
-  "functions": {
-    "api/store.js": { "maxDuration": 30 }
-  }
-}

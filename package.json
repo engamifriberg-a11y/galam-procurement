@@ -1,8 +1,0 @@
-{
-  "name": "galam-procurement",
-  "private": true,
-  "type": "module",
-  "dependencies": {
-    "@neondatabase/serverless": "^1.0.0"
-  }
-}
