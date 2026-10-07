@@ -503,6 +503,17 @@
       "provider": "fred",
       "fredId": "WPU061",
       "note": "BLS"
+    },
+    {
+      "id": "fr.wci_feu",
+      "tier": "A",
+      "group": "freight",
+      "he": "WCI · מכולה 40 רגל",
+      "unit": "$/FEU",
+      "dp": 0,
+      "provider": "oilprice",
+      "code": "CONTAINER_FREIGHT_COMPOSITE_USD",
+      "note": "Drewry World Container Index, מחיר ספוט משוקלל בשמונה נתיבים מזרח-מערב. דורש מפתח חינמי"
     }
   ]
 }

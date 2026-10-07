@@ -126,6 +126,23 @@ export async function fred(fredId, seriesId, { years = 4 } = {}) {
   return out;
 }
 
+/* Drewry WCI — מדד מחירי המכולות בדולרים בפועל, לא מדד מנורמל. זהו העוגן
+   היחיד שמתרגם אחוזים לכסף. דורש מפתח חינמי מ-oilpriceapi.com; בלעדיו
+   הסדרה נשארת מנוהלת ומתעדכנת בהזנה או בשליפה מהרשת. */
+export async function oilprice(def) {
+  const key = process.env.OILPRICE_API_KEY;
+  if (!key) throw new Error('לא הוגדר OILPRICE_API_KEY');
+  const r = await fetch(`https://api.oilpriceapi.com/v1/prices/latest?by_code=${encodeURIComponent(def.code)}`, {
+    headers: { authorization: `Token ${key}`, accept: 'application/json' }
+  });
+  if (!r.ok) throw new Error(`oilpriceapi ${r.status}: ${(await r.text()).slice(0, 160)}`);
+  const d = await r.json();
+  const px = d?.data?.price ?? d?.price;
+  const when = (d?.data?.created_at || d?.created_at || new Date().toISOString()).slice(0, 10);
+  if (!Number.isFinite(Number(px))) throw new Error('oilpriceapi: אין מחיר בתשובה');
+  return [{ series_id: def.id, d: when, value: Number(px), source: 'Drewry WCI', tier: 'A' }];
+}
+
 export const ADAPTERS = { boi, ecb, quote };
 
 // מריץ את כל המתאמים הדרושים לקבוצת סדרות ומחזיר גם את מה שנכשל, בשמו.
@@ -141,6 +158,8 @@ export async function collect(defs) {
   for (const [prov, list] of byProvider) {
     if (prov === 'quote') {
       for (const def of list) jobs.push([def.id, () => quote(def)]);
+    } else if (prov === 'oilprice') {
+      for (const def of list) jobs.push([def.id, () => oilprice(def)]);
     } else if (prov === 'fred') {
       for (const def of list) jobs.push([def.id, async () => (await fred(def.fredId, def.id, { years: 1 })).slice(-1)]);
     } else if (ADAPTERS[prov]) {
