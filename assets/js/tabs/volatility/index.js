@@ -9,11 +9,13 @@ import { wireAiPanel } from './ai-panel.js';
 import { lanesPanel, wireLanes } from './freight-view.js';
 
 const SUBS = [
+  // סדר עברי: הראשון ברשימה יושב הכי ימינה. הכימיקלים הם הלב, ולכן ראשונים,
+  // וההובלה לצידם כי היא רכיב העלות שמזין את ההמלצות שלהם.
+  { id: 'chem', he: 'כימיקלים של גלעם' },
+  { id: 'freight', he: 'הובלה ימית' },
   { id: 'paper', he: 'מחירי נייר' },
   { id: 'energy', he: 'אנרגיה ופלסטיק' },
   { id: 'fx', he: 'שערי מטבע' },
-  { id: 'freight', he: 'הובלה ימית' },
-  { id: 'chem', he: 'כימיקלים של גלעם' },
   { id: 'risk', he: 'משברים ומחסור' }
 ];
 
