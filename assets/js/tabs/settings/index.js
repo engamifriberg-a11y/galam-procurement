@@ -43,7 +43,7 @@ registerTab({
           <input class="inp" id="gk" type="password" placeholder="${s.saved.geminiKey ? 'שמור: ' + esc(s.saved.geminiKey) : 'הדבק מפתח Gemini'}"
                  style="width:330px;text-align:start" autocomplete="off">
           <select class="inp" id="gm" style="width:190px;text-align:start">
-            ${['gemini-3.8-flash', 'gemini-3.8-pro', 'gemini-2.5-flash', 'gemini-2.5-pro'].map(m =>
+            ${['gemini-flash-lite-latest', 'gemini-flash-latest', 'gemini-3.8-flash', 'gemini-pro-latest'].map(m =>
               `<option ${s.saved.geminiModel === m ? 'selected' : ''}>${m}</option>`).join('')}
           </select>
           ${s.protected ? '<input class="inp" id="code" type="password" placeholder="קוד ניהול" style="width:130px;text-align:start">' : ''}
@@ -54,6 +54,7 @@ registerTab({
           המפתח נבדק מול Google לפני השמירה, כדי שלא יישמר מפתח שבור.
           ${s.saved.updatedAt ? `עודכן לאחרונה ${esc(s.saved.updatedAt.slice(0, 16).replace('T', ' '))}.` : ''}
           השג מפתח חינמי ב-<a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a>.
+          אם מתקבלת שגיאת מכסה, בחר מודל קל יותר מהרשימה — למודלים הכבדים אין מכסת חינם.
         </p>
       </div>
     </div>
