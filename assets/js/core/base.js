@@ -59,3 +59,29 @@ export function empty(title, body) {
 export function stamp(text) { const el = $('#stamp'); if (el) el.textContent = text || ''; }
 
 export function tabs() { return TABS; }
+
+/* ---------- עדכון אוטומטי ---------- */
+export const LIVE = {
+  on: true,
+  everyMs: 5 * 60 * 1000,   // משיכה חדשה מהמקורות
+  tickMs: 15 * 1000,        // רענון הכיתוב "עודכן לפני"
+  lastAt: null,
+  timer: null,
+  ticker: null
+};
+
+export function since(ts) {
+  if (!ts) return 'טרם עודכן';
+  const sec = Math.round((Date.now() - ts) / 1000);
+  if (sec < 45) return 'עודכן עכשיו';
+  const min = Math.round(sec / 60);
+  if (min < 60) return `עודכן לפני ${min} דק׳`;
+  const hr = Math.round(min / 60);
+  return `עודכן לפני ${hr} שע׳`;
+}
+
+/* אסור לדרוס שדה שהמשתמש מקליד בו באמצע. */
+export function userIsTyping() {
+  const el = document.activeElement;
+  return Boolean(el && ['INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName));
+}

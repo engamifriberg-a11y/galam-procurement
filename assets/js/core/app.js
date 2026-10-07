@@ -4,7 +4,7 @@
 // ייבוא הדדי בין השניים יוצר תלות מעגלית שנתקעת ומשאירה דף ריק.
 //
 // הוספת לשונית חדשה = שורת import אחת כאן, והמודול רושם את עצמו ב-registerTab.
-import { $, $$, esc, get, clearCache, loading, empty, tabs } from './base.js';
+import { $, $$, esc, get, clearCache, loading, empty, tabs, LIVE, since, userIsTyping } from './base.js';
 import '../tabs/volatility/index.js';
 import '../tabs/settings/index.js';
 
@@ -48,7 +48,7 @@ window.addEventListener('unhandledrejection', e => fatal(String(e.reason?.messag
 $('#theme').onclick = () => {
   const dark = getComputedStyle(document.documentElement).getPropertyValue('--page').trim().toLowerCase().startsWith('#0d');
   document.documentElement.setAttribute('data-theme', dark ? 'light' : 'dark');
-  render();
+  render().then(() => { LIVE.lastAt = Date.now(); startLive(); });
 };
 
 $('#refresh').onclick = async () => {
@@ -62,6 +62,56 @@ $('#refresh').onclick = async () => {
 
 window.addEventListener('hashchange', render);
 
+/* ---------- עדכון אוטומטי ---------- */
+function paintStamp() {
+  const el = $('#stamp');
+  if (!el) return;
+  el.innerHTML = LIVE.on
+    ? `<span class="live-dot"></span>${esc(since(LIVE.lastAt))}`
+    : `עדכון אוטומטי כבוי · ${esc(since(LIVE.lastAt))}`;
+}
+
+async function pull({ quiet = true } = {}) {
+  // לא מושכים כשהלשונית מוסתרת, וגם לא באמצע הקלדה — זה היה דורס שדות
+  if (document.hidden || userIsTyping()) return;
+  const tab = routeFromHash().tab;
+  if (tab === 'settings') return;
+  clearCache();
+  await get('/api/market?refresh=1', { fresh: true });
+  LIVE.lastAt = Date.now();
+  await render();
+  paintStamp();
+  if (!quiet) console.info('עודכן');
+}
+
+function startLive() {
+  clearInterval(LIVE.timer); clearInterval(LIVE.ticker);
+  LIVE.ticker = setInterval(paintStamp, LIVE.tickMs);
+  if (LIVE.on) LIVE.timer = setInterval(pull, LIVE.everyMs);
+  paintStamp();
+}
+
+try { LIVE.on = localStorage.getItem('live') !== 'off'; } catch { /* ברירת מחדל דלוקה */ }
+
+const liveBtn = $('#liveToggle');
+if (liveBtn) liveBtn.onclick = () => {
+  LIVE.on = !LIVE.on;
+  try { localStorage.setItem('live', LIVE.on ? 'on' : 'off'); } catch {}
+  liveBtn.setAttribute('aria-pressed', String(LIVE.on));
+  liveBtn.textContent = LIVE.on ? 'עדכון אוטומטי פועל' : 'עדכון אוטומטי כבוי';
+  startLive();
+  if (LIVE.on) pull();
+};
+if (liveBtn) {
+  liveBtn.setAttribute('aria-pressed', String(LIVE.on));
+  liveBtn.textContent = LIVE.on ? 'עדכון אוטומטי פועל' : 'עדכון אוטומטי כבוי';
+}
+
+// חוזרים ללשונית אחרי שהיתה מוסתרת — מעדכנים מיד אם עבר מספיק זמן
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && LIVE.on && LIVE.lastAt && Date.now() - LIVE.lastAt > LIVE.everyMs) pull();
+});
+
 buildTabs();
 if (!location.hash) location.hash = TABS[0].id;
-render();
+render().then(() => { LIVE.lastAt = Date.now(); startLive(); });

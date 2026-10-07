@@ -47,7 +47,10 @@ header{background:var(--surface); border-bottom:1px solid var(--line); position:
 .brand h1{font-size:25px; line-height:1.15}
 .brand p{margin:2px 0 0; color:var(--ink3); font-size:13px}
 .head-side{display:flex; align-items:center; gap:10px; margin-inline-start:auto}
-.stamp{font-size:12px; color:var(--ink3)}
+.stamp{font-size:12px; color:var(--ink3); display:inline-flex; align-items:center; gap:6px; white-space:nowrap}
+.live-dot{width:7px; height:7px; border-radius:50%; background:var(--accent); flex:none; animation:pulse 2.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+#liveToggle[aria-pressed="false"]{color:var(--ink3)}
 .btn{background:var(--surface); border:1px solid var(--line); border-radius:7px; padding:7px 14px; cursor:pointer; color:var(--ink2); font-size:13.5px}
 .btn:hover{border-color:var(--accent); color:var(--accent)}
 .btn.primary{background:var(--accent); border-color:var(--accent); color:#fff}

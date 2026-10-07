@@ -1,6 +1,6 @@
 // לשונית: תנודתיות חומרי גלם ומדדי מאקרו.
 // מבנה: תת-לשוניות עצמאיות, כל אחת מקבלת את אותו מטען נתונים.
-import { registerTab, esc, stamp, loading } from '../../core/base.js';
+import { registerTab, esc, loading } from '../../core/base.js';
 import { loadMarket, loadChemicals, loadPrices, indexSeries } from './data.js';
 import { groupView, wireInputs } from './market-view.js';
 import { chemicalsView, wireChemicals } from './chemicals-view.js';
@@ -34,11 +34,10 @@ registerTab({
     const host = view.querySelector('#subview');
     const rerender = () => this.render(view, { sub: active, go });
 
-    if (active === 'risk') { stamp(''); return riskView(host); }
+    if (active === 'risk') return riskView(host);
 
     const market = await loadMarket();
     const byId = indexSeries(market);
-    stamp(market.at ? `עודכן ${market.at.slice(11, 16)} · ${market.db ? 'היסטוריה פעילה' : 'ללא היסטוריה'}` : '');
 
     if (market.error) {
       host.innerHTML = `<div class="banner warn"><div><b>שגיאת נתונים.</b> ${esc(market.error)}</div></div>`;

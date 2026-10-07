@@ -180,3 +180,4 @@ else {
 }
 
 console.log(process.exitCode ? '\nנכשל' : '\nעבר');
+process.exit(process.exitCode || 0);   // טיימרי העדכון האוטומטי מחזיקים את התהליך
