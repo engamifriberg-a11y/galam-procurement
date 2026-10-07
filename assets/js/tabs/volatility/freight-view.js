@@ -9,7 +9,7 @@
 //   זמן    — אחוזי השינוי של מדד ההובלה הרשמי מחזירים את המחיר אחורה.
 //
 // כל מספר שאינו ציטוט ישיר מסומן "אומדן".
-import { esc, nf, pc, dirClass, get } from '../../core/base.js';
+import { esc, cssEsc, nf, pc, dirClass, get } from '../../core/base.js';
 
 const LS = 'lane-quotes';
 const LS_RATIO = 'teu-ratio';
@@ -123,7 +123,7 @@ export function wireLanes(root, rerender) {
   root.querySelectorAll('[data-lane-save]').forEach(btn => {
     btn.onclick = () => {
       const key = btn.dataset.laneSave;
-      const input = root.querySelector(`[data-lane="${CSS.escape(key)}"]`);
+      const input = root.querySelector(`[data-lane="${cssEsc(key)}"]`);
       const v = Number(input?.value);
       const quotes = loadQuotes();
       if (!Number.isFinite(v) || v <= 0) delete quotes[key];

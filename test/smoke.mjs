@@ -70,6 +70,8 @@ globalThis.fetch = async (url) => {
     : u.startsWith('/api/prices') ? {}
     : u.includes('task=brief') ? { group: 'x', he: 'x', text: 'קריאת בדיקה.', basedOn: 3, missing: 1, at: new Date().toISOString(), provider: 'nvidia' }
     : u.includes('task=pitch') ? { key: '1', item: 'x', rec: 'ask', text: 'טיעון בדיקה.', at: new Date().toISOString() }
+    : u.startsWith('/api/suppliers') ? JSON.parse(await readFile(join(ROOT, 'assets/data/suppliers.json'), 'utf8'))
+    : u.startsWith('/assets/data/lanes.json') ? JSON.parse(await readFile(join(ROOT, 'assets/data/lanes.json'), 'utf8'))
     : u.startsWith('/api/settings') ? { protected: false, saved: {}, search: { engine: 'Google News RSS', source: 'ברירת מחדל' }, active: { provider: 'nvidia', model: 'openai/gpt-oss-20b', search: false, source: 'סביבה' }, env: { tavily: false, nvidia: true, gemini: false, anthropic: false } }
     : u.includes('task=quote') ? { group: 'freight', asked: 8, quotes: [] }
     : u.startsWith('/api/analysis') ? { window: 'd90', series: API_MARKET.series, rows: [], modes: {} }
@@ -180,6 +182,30 @@ else {
   h.includes('id="gk"') ? pass('לשונית הגדרות: שדה מפתח Gemini') : fail('לשונית הגדרות: שדה חסר');
   h.includes('ADMIN_CODE') ? pass('לשונית הגדרות: אזהרת אבטחה מוצגת') : fail('לשונית הגדרות: אזהרה חסרה');
   h.includes('id="tk"') ? pass('לשונית הגדרות: שדה מפתח Tavily') : fail('לשונית הגדרות: שדה Tavily חסר');
+}
+
+// לשונית הספקים
+const sup = tabs().find(t => t.id === 'suppliers');
+if (!sup) fail('לשונית הספקים לא נרשמה');
+else {
+  for (const s2 of ['risk', 'contacts', 'segment', 'terms', 'data']) {
+    els.get('#subview')._html = '';
+    clearCache();
+    try {
+      await sup.render(els.get('#view'), { sub: s2, go: () => {} });
+      await new Promise(r => setTimeout(r, 250));
+      const h = els.get('#subview').innerHTML;
+      if (!h) { fail(`ספקים · ${s2}: אין תוכן`); continue; }
+      pass(`ספקים · ${s2} (${h.length.toLocaleString()} תווים)`);
+    } catch (e) { fail(`ספקים · ${s2}: ${e.message}`); }
+  }
+  els.get('#subview')._html = '';
+  clearCache();
+  await sup.render(els.get('#view'), { sub: 'risk', go: () => {} });
+  await new Promise(r => setTimeout(r, 250));
+  const rh = els.get('#subview').innerHTML;
+  rh.includes('data-bucket') ? pass('גרף הסיכון לחיץ') : fail('גרף הסיכון אינו לחיץ');
+  rh.includes('מתחת ל-15') ? pass('רף הסיכון 15 מוצג') : fail('רף הסיכון חסר');
 }
 
 console.log(process.exitCode ? '\nנכשל' : '\nעבר');

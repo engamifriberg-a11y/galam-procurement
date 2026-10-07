@@ -1,6 +1,6 @@
 // תצוגת קבוצת סדרות: כרטיסים + טבלת תנודתיות + הזנת ערך לאינדקס מנוהל.
 // משמשת את תתי-הלשוניות נייר, אנרגיה ופלסטיק, מטבעות והובלה ימית.
-import { esc, nf, pc, dirClass, sparkline, send, get, clearCache } from '../../core/base.js';
+import { esc, cssEsc, nf, pc, dirClass, sparkline, send, get, clearCache } from '../../core/base.js';
 import { aiPanelShell } from './ai-panel.js';
 
 export function groupView(market, groups, { title, lead, note, aiTitle } = {}) {
@@ -103,7 +103,7 @@ export function wireInputs(root, onSaved, group) {
     }
     let filled = 0;
     for (const q of r.body.quotes || []) {
-      const tr = root.querySelector(`tr[data-sid="${CSS.escape(q.id)}"]`);
+      const tr = root.querySelector(`tr[data-sid="${cssEsc(q.id)}"]`);
       if (!tr) continue;
       tr.querySelector('[data-f="value"]').value = q.value;
       if (q.asOf) tr.querySelector('[data-f="date"]').value = q.asOf;

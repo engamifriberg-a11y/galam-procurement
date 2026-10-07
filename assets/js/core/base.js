@@ -2,6 +2,8 @@
 // הוספת לשונית חדשה = קובץ אחד שקורא ל-registerTab, ושורה אחת ברשימת ה-import למטה.
 export const $ = (s, r = document) => r.querySelector(s);
 export const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+// CSS.escape אינו קיים מחוץ לדפדפן, ושובר כל בדיקה אוטומטית
+export const cssEsc = v => (typeof CSS !== 'undefined' && CSS.escape) ? CSS.escape(String(v)) : String(v).replace(/["\\]/g, '\\$&');
 export const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 export const nf = (v, dp = 2) => v == null || !Number.isFinite(v) ? '—' : v.toLocaleString('he-IL', { minimumFractionDigits: dp, maximumFractionDigits: dp });
 export const pc = v => v == null || !Number.isFinite(v) ? '—' : (v > 0 ? '+' : '') + v.toFixed(1) + '%';

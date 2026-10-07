@@ -7,6 +7,7 @@ import { chemicalsView, wireChemicals } from './chemicals-view.js';
 import { riskView } from './risk-view.js';
 import { wireAiPanel } from './ai-panel.js';
 import { lanesPanel, wireLanes } from './freight-view.js';
+import { uploadPanel, wireUpload, pick, pickNum } from '../../core/upload.js';
 
 const SUBS = [
   // סדר עברי: הראשון ברשימה יושב הכי ימינה. הכימיקלים הם הלב, ולכן ראשונים,
@@ -87,9 +88,26 @@ registerTab({
     }[active];
 
     host.innerHTML = groupView(market, cfg.groups, cfg)
-      + (active === 'freight' ? await lanesPanel(byId) : '');
+      + (active === 'freight' ? await lanesPanel(byId) + uploadPanel({
+          id: 'freight',
+          title: 'טעינת מחירי הובלה מקובץ',
+          hint: 'הצעות מחיר מהמשלח. כל שורה מעדכנת סדרה אחת במאגר',
+          columns: 'עמודות: מזהה סדרה (למשל fr.wci_feu), ערך, תאריך, מקור'
+        }) : '');
     wireInputs(host, rerender, active);
-    if (active === 'freight') wireLanes(host, rerender);
+    if (active === 'freight') {
+      wireLanes(host, rerender);
+      wireUpload(host, {
+        id: 'freight', endpoint: '/api/series-bulk',
+        mapRow: row => {
+          const id = pick(row, 'מזהה סדרה', 'series', 'id');
+          const value = pickNum(row, 'ערך', 'value', 'מחיר');
+          if (!id || value == null) return null;
+          return { series: id, value, date: pick(row, 'תאריך', 'date'), source: pick(row, 'מקור', 'source') || 'קובץ משלח' };
+        },
+        onDone: rerender
+      });
+    }
     wireAiPanel(host, `/api/ai?task=brief&group=${active}`);
   }
 });
