@@ -7,6 +7,7 @@
 import { $, $$, esc, get, clearCache, loading, empty, tabs, LIVE, since, userIsTyping } from './base.js';
 import '../tabs/volatility/index.js';
 import '../tabs/suppliers/index.js';
+import '../tabs/contracts/index.js';
 import '../tabs/settings/index.js';
 
 const TABS = tabs();

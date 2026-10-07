@@ -17,7 +17,10 @@ class El {
   get innerHTML() { return this._html; }
   // מחזיר אלמנט רשום אם ה-HTML שנכתב אכן מכיל אותו, כדי לדמות חיפוש בתוך תת-עץ
   querySelector(s) {
-    if (s?.startsWith('#') && els.has(s) && this._html.includes(`id="${s.slice(1)}"`)) return els.get(s);
+    if (s?.startsWith('#') && this._html.includes(`id="${s.slice(1)}"`)) {
+      if (!els.has(s)) els.set(s, new El(s));
+      return els.get(s);
+    }
     // סלקטור לפי מאפיין: מחזירים אלמנט זמני אם הוא אכן קיים ב-HTML שנכתב
     const attr = s?.match(/^\[([\w-]+)\]$/);
     if (attr && this._html.includes(attr[1])) return new El(s);
@@ -70,6 +73,7 @@ globalThis.fetch = async (url) => {
     : u.startsWith('/api/prices') ? {}
     : u.includes('task=brief') ? { group: 'x', he: 'x', text: 'קריאת בדיקה.', basedOn: 3, missing: 1, at: new Date().toISOString(), provider: 'nvidia' }
     : u.includes('task=pitch') ? { key: '1', item: 'x', rec: 'ask', text: 'טיעון בדיקה.', at: new Date().toISOString() }
+    : u.startsWith('/api/contracts') ? { ...JSON.parse(await readFile(join(ROOT, 'assets/data/contracts.json'), 'utf8')), overrides: {}, origin: 'קובץ בסיס' }
     : u.startsWith('/api/suppliers') ? JSON.parse(await readFile(join(ROOT, 'assets/data/suppliers.json'), 'utf8'))
     : u.startsWith('/assets/data/lanes.json') ? JSON.parse(await readFile(join(ROOT, 'assets/data/lanes.json'), 'utf8'))
     : u.startsWith('/api/settings') ? { protected: false, saved: {}, search: { engine: 'Google News RSS', source: 'ברירת מחדל' }, active: { provider: 'nvidia', model: 'openai/gpt-oss-20b', search: false, source: 'סביבה' }, env: { tavily: false, nvidia: true, gemini: false, anthropic: false } }
@@ -227,6 +231,28 @@ else {
   await new Promise(r => setTimeout(r, 250));
   const g = els.get('#subview').innerHTML;
   g.includes('data-jump="cls"') ? pass('תחומי סיווג לחיצים') : fail('תחומי הסיווג אינם לחיצים');
+}
+
+// לשונית חוזי אחזקה
+{
+  const ct = tabs().find(t => t.id === 'contracts');
+  if (!ct) fail('לשונית חוזי אחזקה לא נרשמה');
+  else for (const s2 of ['track', 'data']) {
+    els.get('#subview')._html = '';
+    clearCache();
+    try {
+      await ct.render(els.get('#view'), { sub: s2, go: () => {} });
+      await new Promise(r => setTimeout(r, 250));
+      const h = els.get('#subview').innerHTML;
+      if (!h) { fail(`חוזים · ${s2}: אין תוכן`); continue; }
+      pass(`חוזים · ${s2} (${h.length.toLocaleString()} תווים)`);
+      if (s2 === 'track') {
+        h.includes('data-open=') ? pass('שורת חוזה לחיצה') : fail('שורת חוזה אינה לחיצה');
+        h.includes('data-money=') ? pass('עריכת סכום מהירה') : fail('עריכת סכום חסרה');
+        h.includes('data-filter="soon"') ? pass('מסנני ההתראות') : fail('מסנני ההתראות חסרים');
+      }
+    } catch (e) { fail(`חוזים · ${s2}: ${e.message}`); }
+  }
 }
 
 // מחלקות שמופיעות ב-HTML אך חסרות ב-CSS — זה מה שגרם לשדות להיערם
