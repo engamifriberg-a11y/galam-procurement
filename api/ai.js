@@ -6,7 +6,7 @@
 // התוצאה כבר מוכנה והמשתמש אינו ממתין כלל.
 import { hasDb, kvGet, kvSet } from './_lib/db.js';
 import { fetchNews } from './_lib/news.js';
-import { provider, runTask, callNvidia, nvidiaRaw, nvidiaModels, chemicals, riskPromptGrounded, callStats } from './_lib/scan.js';
+import { provider, runTask, callNvidia, nvidiaRaw, nvidiaModels, chemicals, riskPromptGrounded, callStats, briefGroup, pitchItem } from './_lib/scan.js';
 
 const TTL_MS = 12 * 3600 * 1000;
 
@@ -57,6 +57,33 @@ export default async function handler(req, res) {
       const r = { step: 'bench', model: req.query.model || process.env.NVIDIA_MODEL, totalMs: Date.now() - t0, error: String(e.message) };
       if (hasDb()) { try { await kvSet('ai:lastrun', r); } catch {} }
       return res.status(502).json(r);
+    }
+  }
+
+  /* ---------- קריאת AI לשאר הלשוניות ---------- */
+  // brief = קריאת שוק לקבוצת סדרות. pitch = נימוק לשיחה מול ספק.
+  if (req.query.task === 'brief' || req.query.task === 'pitch') {
+    const isBrief = req.query.task === 'brief';
+    const id = isBrief ? req.query.group : req.query.item;
+    if (!id) return res.status(400).json({ error: isBrief ? 'missing group' : 'missing item' });
+    const cacheKey = `ai:${req.query.task}:${id}:${req.query.window || 'd90'}`;
+
+    if (!req.query.force && hasDb()) {
+      try {
+        const c = await kvGet(cacheKey);
+        if (c && Date.now() - new Date(c.at).getTime() < TTL_MS) return res.status(200).json({ ...c, cached: true });
+      } catch { /* ממשיכים */ }
+    }
+    if (!prov) return res.status(503).json({ error: 'no_ai_key', message: 'לא הוגדר מפתח AI במשתני הסביבה.' });
+
+    try {
+      const out = isBrief ? await briefGroup(id) : await pitchItem(id, req.query.window);
+      const payload = { ...out, provider: prov, model: prov === 'nvidia' ? process.env.NVIDIA_MODEL : undefined };
+      if (hasDb()) { try { await kvSet(cacheKey, payload); } catch {} }
+      return res.status(200).json(payload);
+    } catch (e) {
+      console.error(e);
+      return res.status(502).json({ error: 'ai_failed', message: String(e.message || e) });
     }
   }
 

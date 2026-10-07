@@ -60,9 +60,12 @@ globalThis.fetch = async (url) => {
   const u = String(url);
   const body = u.startsWith('/api/market') ? API_MARKET
     : u.startsWith('/api/prices') ? {}
+    : u.includes('task=brief') ? { group: 'x', he: 'x', text: 'קריאת בדיקה.', basedOn: 3, missing: 1, at: new Date().toISOString(), provider: 'nvidia' }
+    : u.includes('task=pitch') ? { key: '1', item: 'x', rec: 'ask', text: 'טיעון בדיקה.', at: new Date().toISOString() }
+    : u.startsWith('/api/analysis') ? { window: 'd90', series: API_MARKET.series, rows: [], modes: {} }
     : u.startsWith('/api/ai') ? (AI_OK ? AI_PAYLOAD : { error: 'no_ai_key', message: 'test' })
     : JSON.parse(await readFile(join(ROOT, u.replace(/^\//, '')), 'utf8'));
-  const aiFail = u.startsWith('/api/ai') && !AI_OK;
+  const aiFail = u.startsWith('/api/ai') && !AI_OK && !u.includes('task=brief') && !u.includes('task=pitch');
   return { ok: !aiFail, status: aiFail ? 503 : 200, json: async () => body };
 };
 
@@ -127,5 +130,21 @@ const riskHtml = els.get('#subview').innerHTML;
 riskHtml.includes('Sulfuric Acid 98%') ? pass('לשונית משברים: התרעה הוצגה') : fail('לשונית משברים: ההתרעה לא הוצגה');
 riskHtml.includes('Reuters: China suspends') ? pass('לשונית משברים: כותרת המקור מקושרת') : fail('לשונית משברים: חסר קישור למקור');
 riskHtml.includes('18 כותרות') || riskHtml.includes('נסרקו 18') ? pass('לשונית משברים: מוצג היקף העיגון') : fail('לשונית משברים: לא מוצג היקף העיגון');
+
+// פאנל ה-AI קיים בלשוניות השוק, וכפתור הנימוק בלשונית הכימיקלים
+for (const sub of ['paper', 'energy', 'fx', 'freight']) {
+  els.get('#subview')._html = '';
+  clearCache();
+  await vol.render(els.get('#view'), { sub, go: () => {} });
+  await new Promise(r => setTimeout(r, 200));
+  els.get('#subview').innerHTML.includes('data-ai-run')
+    ? pass(`פאנל AI בלשונית ${sub}`) : fail(`פאנל AI חסר בלשונית ${sub}`);
+}
+els.get('#subview')._html = '';
+clearCache();
+await vol.render(els.get('#view'), { sub: 'chem', go: () => {} });
+await new Promise(r => setTimeout(r, 200));
+els.get('#subview').innerHTML.includes('data-pitch=')
+  ? pass('כפתור נימוק בשורות הכימיקלים') : fail('כפתור נימוק חסר');
 
 console.log(process.exitCode ? '\nנכשל' : '\nעבר');

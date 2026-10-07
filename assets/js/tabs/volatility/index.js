@@ -5,6 +5,7 @@ import { loadMarket, loadChemicals, loadPrices, indexSeries } from './data.js';
 import { groupView, wireInputs } from './market-view.js';
 import { chemicalsView, wireChemicals } from './chemicals-view.js';
 import { riskView } from './risk-view.js';
+import { wireAiPanel } from './ai-panel.js';
 
 const SUBS = [
   { id: 'paper', he: 'מחירי נייר ועיסה' },
@@ -53,6 +54,7 @@ registerTab({
 
     const cfg = {
       paper: {
+        aiTitle: 'קריאת שוק הנייר',
         groups: ['paper'], title: 'מחירי נייר ועיסת נייר',
         lead: `<div><b>אין בורסת נייר עם API חינמי.</b> מחירי העיסה והקרטון מתפרסמים בדוחות של בתי תוכן
           כמו FOEX, RISI ו-EUWID, וחוזי העיסה נסחרים בבורסת שנגחאי. לכן הסדרות כאן מנוהלות: מזינים
@@ -60,16 +62,19 @@ registerTab({
           כמקור אחד בשכבת המתאמים בלי לשנות שום דבר אחר.</div>`
       },
       energy: {
+        aiTitle: 'קריאת שוק האנרגיה והפולימרים',
         groups: ['energy', 'plastic'], title: 'אנרגיה ופלסטיקים',
         lead: `<div><b>הנפט והגז חיים.</b> ברנט, WTI וגז טבעי נמשכים ישירות מציטוטי הבורסה.
           הפולימרים — PP, PE, PVC — אין להם מקור ציבורי חינמי, והם מנוהלים ידנית עד חיבור מנוי.</div>`
       },
       fx: {
+        aiTitle: 'קריאת שוק המטבע',
         groups: ['fx'], title: 'שערי מטבע מול השקל',
         lead: `<div><b>מקור רשמי.</b> הדולר והאירו נמשכים מהשער היציג של בנק ישראל, שהוא גם השער
           הקובע לצורכי חשבונאות ורכש. שער האירו־דולר מגיע מ-ECB.</div>`
       },
       freight: {
+        aiTitle: 'קריאת שוק ההובלה',
         groups: ['freight'], title: 'מחירי הובלה',
         lead: `<div><b>מכולות 20 ו-40 רגל, ומכליות.</b> מדדי FBX ו-Drewry הם מסחריים, ולכן הסדרות מנוהלות.
           שורת המפתח לגלעם היא מכלית הכימיקלים מאירופה לישראל וההובלה היבשתית בארץ — שתיהן נכנסות
@@ -79,5 +84,6 @@ registerTab({
 
     host.innerHTML = groupView(market, cfg.groups, cfg);
     wireInputs(host, rerender);
+    wireAiPanel(host, `/api/ai?task=brief&group=${active}`);
   }
 });

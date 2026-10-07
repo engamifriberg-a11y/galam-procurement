@@ -1,8 +1,9 @@
 // תצוגת קבוצת סדרות: כרטיסים + טבלת תנודתיות + הזנת ערך לאינדקס מנוהל.
 // משמשת את תתי-הלשוניות נייר, אנרגיה ופלסטיק, מטבעות והובלה ימית.
 import { esc, nf, pc, dirClass, sparkline, send, clearCache } from '../../core/base.js';
+import { aiPanelShell } from './ai-panel.js';
 
-export function groupView(market, groups, { title, lead, note } = {}) {
+export function groupView(market, groups, { title, lead, note, aiTitle } = {}) {
   const list = (market.series || []).filter(s => groups.includes(s.group));
   if (!list.length) return `<div class="panel"><div class="pb"><div class="empty"><b>אין סדרות בקבוצה</b></div></div></div>`;
 
@@ -15,6 +16,8 @@ export function groupView(market, groups, { title, lead, note } = {}) {
     <div class="ph"><h2>${esc(title)}</h2><p>${live.length} סדרות חיות · ${managed.length} אינדקסים מנוהלים</p></div>
     <div class="cards">${list.map(cardHtml).join('')}</div>
   </div>
+
+  ${aiPanelShell(aiTitle || 'קריאת השוק', 'ניסוח AI מתוך המספרים שלמעלה')}
 
   <div class="panel">
     <div class="ph"><h2>תנודתיות ושינויים</h2><p>שינוי באחוזים לפי חלון זמן, ותנודתיות שנתית מתוך 90 הימים האחרונים</p></div>

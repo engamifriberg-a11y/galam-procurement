@@ -2,6 +2,7 @@
 import { readFile } from 'node:fs/promises';
 import { hasDb, kvGet, kvSet } from './db.js';
 import { fetchNews, digest } from './news.js';
+import { analyse } from './analysis.js';
 
 export async function chemicals() {
   return JSON.parse(await readFile(new URL('../../assets/data/chemicals.json', import.meta.url), 'utf8')).items;
@@ -98,7 +99,7 @@ export async function callGemini(prompt) {
 }
 
 // NVIDIA NIM — תואם OpenAI
-export async function callNvidia(prompt, override) {
+export async function callNvidia(prompt, override, opts = {}) {
   const model = override || process.env.NVIDIA_MODEL || 'nvidia/llama-3.1-nemotron-70b-instruct';
   const t0 = Date.now();
   const r = await withTimeout(52000, 'NVIDIA', signal => fetch(`${NVIDIA_BASE}/chat/completions`, {
@@ -116,7 +117,9 @@ export async function callNvidia(prompt, override) {
       messages: [
         // "detailed thinking off" מכבה את שרשרת החשיבה במשפחת Nemotron.
         // בלעדיה המודל מייצר אלפי טוקני הגיון וחורג ממגבלת הזמן של הפונקציה.
-        { role: 'system', content: 'אתה אנליסט רכש. החזר JSON תקין בלבד, בלי הסברים ובלי גדרות קוד. אל תמציא עובדות או מקורות.' },
+        { role: 'system', content: opts.plain
+            ? 'אתה מנהל רכש בכיר. אתה כותב עברית תמציתית ומקצועית, בלי כותרות ובלי רשימות. אתה משתמש אך ורק במספרים שנמסרו לך ולעולם לא ממציא נתון.'
+            : 'אתה אנליסט רכש. החזר JSON תקין בלבד, בלי הסברים ובלי גדרות קוד. אל תמציא עובדות או מקורות.' },
         { role: 'user', content: prompt }
       ]
     })
@@ -237,4 +240,84 @@ export async function runTask(task) {
   const payload = { task, provider: prov, model: prov === 'nvidia' ? (process.env.NVIDIA_MODEL || 'openai/gpt-oss-20b') : undefined, grounding, at: new Date().toISOString(), data };
   if (hasDb()) { try { await kvSet(`ai:${task}`, payload); } catch { /* לא קריטי */ } }
   return payload;
+}
+
+
+/* ================= שכבת ה-AI של שאר הלשוניות =================
+   כאן המודל לא מביא נתונים ולא מחפש. הוא מקבל את המספרים שהמערכת כבר
+   חישבה ומנסח מהם קריאה לקניין. זה השימוש הבטוח: ניסוח, לא המצאה. */
+
+const GROUPS = {
+  paper:   { he: 'נייר ועיסת נייר', groups: ['paper'] },
+  energy:  { he: 'אנרגיה ופלסטיקים', groups: ['energy', 'plastic'] },
+  fx:      { he: 'שערי מטבע', groups: ['fx'] },
+  freight: { he: 'הובלה', groups: ['freight'] }
+};
+
+const fmtPct = v => v == null || !Number.isFinite(v) ? 'אין נתון' : (v > 0 ? '+' : '') + v.toFixed(1) + '%';
+
+export async function briefGroup(key) {
+  const cfg = GROUPS[key];
+  if (!cfg) throw new Error('unknown group');
+  const { series } = await analyse('d90');
+  const list = series.filter(s => cfg.groups.includes(s.group));
+  const withData = list.filter(s => s.last != null);
+
+  if (!withData.length) {
+    return { group: key, he: cfg.he, empty: true,
+      text: `אין עדיין נתונים בקבוצת ${cfg.he}. הזן ערכים לאינדקסים המנוהלים ותתקבל כאן קריאה.` };
+  }
+
+  const table = withData.map(s =>
+    `${s.he}: ${s.last}${s.unit} | חודש ${fmtPct(s.chg?.d30)} | רבעון ${fmtPct(s.chg?.d90)} | שנה ${fmtPct(s.chg?.d365)} | תנודתיות ${s.vol90 == null ? 'אין' : s.vol90.toFixed(0) + '%'}`
+  ).join('\n');
+
+  const missing = list.filter(s => s.last == null).map(s => s.he);
+
+  const prompt = `אתה מנהל רכש בכיר בחברת גלעם, יצרנית מרכיבי מזון בישראל. לפניך נתוני שוק מדודים בקבוצת ${cfg.he}:
+
+${table}
+${missing.length ? `\nסדרות בלי נתון: ${missing.join(', ')}` : ''}
+
+כתוב לקניין קריאה קצרה בעברית, בשלושה חלקים, בלי כותרות ובלי רשימות:
+משפט אחד על מה זז הכי הרבה ולאיזה כיוון. משפט אחד על המשמעות לעלויות הרכש של גלעם. משפט אחד על מה לעשות או על מה לעקוב השבוע.
+
+חוקים: השתמש אך ורק במספרים שלמעלה. אל תוסיף מחירים, תחזיות מספריות או אירועים שאינם כאן. עד 60 מילים בסך הכל. החזר טקסט בלבד, בלי JSON.`;
+
+  const text = await callByProvider(prompt);
+  return { group: key, he: cfg.he, text: text.trim(), basedOn: withData.length, missing: missing.length, at: new Date().toISOString() };
+}
+
+export async function pitchItem(key, window = 'd90') {
+  const { rows } = await analyse(window);
+  const row = rows.find(r => (r.item.item || String(r.item.n)) === String(key));
+  if (!row) throw new Error('unknown item');
+  const { item, exp, paid, rec, fr } = row;
+
+  const drivers = exp.parts.map(p => `${p.he} (משקל ${(p.w * 100).toFixed(0)}%): ${fmtPct(p.chg)}`).join('; ');
+  const prompt = `אתה מנהל רכש בכיר בגלעם. הכן לקניין נימוק לשיחה מול הספק.
+
+פריט: ${item.he || item.en} (${item.en})
+כמות שנתית: ${item.tons} טון | ספקים חלופיים: ${item.sup} | מקור: ${item.origin} | מטבע: ${item.cur}
+אופן הובלה: ${fr ? fr.he : 'לא מוגדר'}, שינוי ברכיב ההובלה: ${fmtPct(fr?.chg)}
+מנועי העלות: ${drivers}
+שינוי משוקלל במנועי העלות: ${fmtPct(exp.pct)}
+${paid ? `מחיר אחרון ששולם: ${paid.price} ${paid.cur} ל${paid.unit}, קודם: ${paid.prev ?? 'לא הוזן'}` : 'מחיר אחרון: לא הוזן במערכת'}
+${rec.gap == null ? '' : `פער בין מה ששולם למה שהשוק מצדיק: ${rec.gap.toFixed(1)} נקודות`}
+מסקנת המערכת: ${rec.he}. ${rec.why}
+עוצמת מיקוח: ${rec.lev} מתוך 100.
+
+כתוב בעברית שני משפטים בלבד: הטיעון שהקניין יאמר לספק, ואחריו נקודת התורפה הצפויה בתשובת הספק וכיצד להתמודד איתה. השתמש רק במספרים שלמעלה. בלי פתיח, בלי כותרות, בלי רשימות. עד 55 מילים.`;
+
+  const text = await callByProvider(prompt);
+  return { key: String(key), item: item.he || item.en, rec: rec.code, text: text.trim(), at: new Date().toISOString() };
+}
+
+// טקסט חופשי, לא JSON — הודעת המערכת חייבת להשתנות בהתאם
+async function callByProvider(prompt) {
+  const prov = provider();
+  if (!prov) throw new Error('no_ai_key');
+  if (prov === 'anthropic') return callAnthropic(prompt);
+  if (prov === 'gemini') return callGemini(prompt);
+  return callNvidia(prompt, undefined, { plain: true });
 }

@@ -2,6 +2,7 @@
 // עוצמת המיקוח, והמלצה מפורשת לקניין בסוף השורה.
 import { esc, nf, pc, dirClass, send, clearCache } from '../../core/base.js';
 import { expectedChange, recommend, freightPart } from './data.js';
+import { get } from '../../core/base.js';
 
 const WINDOWS = [['d30', 'חודש'], ['d90', 'רבעון'], ['d365', 'שנה']];
 
@@ -38,7 +39,7 @@ export function chemicalsView(market, chem, prices, byId, state) {
       <thead><tr>
         <th>כימיקל</th><th class="num">טון/שנה</th><th>ספקים</th><th>הובלה</th>
         <th class="num">הובלה ${esc(label(win))}</th><th class="num">מנועי עלות</th><th class="num">מחיר ששולם</th>
-        <th class="num">פער</th><th class="num">מיקוח</th><th>המלצה לקניין</th>
+        <th class="num">פער</th><th class="num">מיקוח</th><th>המלצה לקניין</th><th>נימוק לשיחה</th>
       </tr></thead>
       <tbody>${rows.map(rowHtml).join('')}</tbody>
     </table></div>
@@ -69,6 +70,7 @@ function rowHtml({ item, exp, paid, rec, fr }) {
     <td class="num ${rec.gap == null ? 'flat' : rec.gap > 0 ? 'up' : 'down'}">${rec.gap == null ? '—' : (rec.gap > 0 ? '+' : '') + rec.gap.toFixed(1)}</td>
     <td class="num">${rec.lev}</td>
     <td><span class="pill ${rec.cls}">${esc(rec.he)}</span><span class="sub">${esc(rec.why)}</span></td>
+    <td style="min-width:210px"><button class="btn sm" data-pitch="${esc(item.item || String(item.n))}">נסח טיעון</button><span class="sub" data-pitch-out></span></td>
   </tr>`;
 }
 
@@ -93,6 +95,18 @@ function priceRow(item, paid) {
 
 export function wireChemicals(root, state, rerender) {
   root.querySelectorAll('[data-win]').forEach(b => b.onclick = () => { state.win = b.dataset.win; rerender(); });
+
+  // נימוק לשיחה מול הספק. המודל מקבל את המספרים של השורה ומנסח מהם בלבד.
+  root.querySelectorAll('[data-pitch]').forEach(btn => {
+    btn.onclick = async () => {
+      const out = btn.parentElement.querySelector('[data-pitch-out]');
+      btn.disabled = true; out.textContent = ' מנסח…';
+      const r = await get(`/api/ai?task=pitch&item=${encodeURIComponent(btn.dataset.pitch)}&window=${state.win || 'd90'}`);
+      btn.disabled = false;
+      if (r.status === 503) { out.textContent = ' לא הוגדר מפתח AI.'; return; }
+      out.textContent = r.ok ? ' ' + (r.body.text || '') : ' הניסוח נכשל: ' + (r.body?.message || 'שגיאה');
+    };
+  });
   root.querySelectorAll('[data-savep]').forEach(btn => {
     btn.onclick = async () => {
       const tr = btn.closest('tr');
