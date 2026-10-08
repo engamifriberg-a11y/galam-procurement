@@ -67,9 +67,13 @@ const API_MARKET = {
     hist: Array.from({ length: 30 }, (_, k) => ['2026-09-' + String(k + 1).padStart(2, '0'), 100 + k])
   }))
 };
+// כמויות שהוזנו ידנית, נדרס בבדיקה עצמה
+let TONS_OVERRIDE = {};
+
 globalThis.fetch = async (url) => {
   const u = String(url);
   const body = u.startsWith('/api/market') ? API_MARKET
+    : u.startsWith('/api/prices?what=tons') ? TONS_OVERRIDE
     : u.startsWith('/api/prices') ? {}
     : u.includes('task=brief') ? { group: 'x', he: 'x', text: 'קריאת בדיקה.', basedOn: 3, missing: 1, at: new Date().toISOString(), provider: 'nvidia' }
     : u.includes('task=pitch') ? { key: '1', item: 'x', rec: 'ask', text: 'טיעון בדיקה.', at: new Date().toISOString() }
@@ -178,6 +182,18 @@ els.get('#subview').innerHTML.includes('data-chemsort')
     ? pass('מיון טונות מהגבוה לנמוך') : fail('מיון טונות יורד שגוי: ' + desc);
   String(asc) === String(['קטן', 'בינוני', 'גדול', 'ללא כמות'])
     ? pass('מיון טונות מהנמוך לגבוה') : fail('מיון טונות עולה שגוי: ' + asc);
+
+  // הזנה ידנית: דורסת את הקובץ, משנה את הסדר, ומסומנת בטבלה
+  const { applyTons } = await import(new URL('../assets/js/tabs/volatility/data.js', import.meta.url));
+  const edited = { items: applyTons(chem.items, { 'קטן': 9000, 'גדול': null }) };
+  const after = names(chemicalsView({}, edited, {}, new Map(), { win: 'd90', sort: 'tons', dir: -1 }));
+  String(after) === String(['קטן', 'גדול', 'בינוני', 'ללא כמות'])
+    ? pass('כמות שהוזנה ידנית דורסת את הקובץ וקובעת את הסדר') : fail('ההזנה הידנית לא נתפסה במיון: ' + after);
+  const html = chemicalsView({}, edited, {}, new Map(), { win: 'd90', sort: 'tons', dir: -1 });
+  html.includes('data-f="tons"') ? pass('שדה הזנת כמות בכל שורה') : fail('שדה הזנת הכמות חסר');
+  html.includes('ידני') && html.includes('מהקובץ')
+    ? pass('מסומן מה הוזן ידנית ומה מהקובץ') : fail('חסר סימון מקור הכמות');
+  applyTons(chem.items, {})[0].tons === 5 ? pass('בלי הזנה, הכמות נשארת מהקובץ') : fail('הכמות מהקובץ נדרסה לשווא');
 }
 
 // כפתור שליפת הערכים מופיע בלשונית עם אינדקסים מנוהלים

@@ -29,6 +29,7 @@ export function chemicalsView(market, chem, prices, byId, state) {
   const asks = rows.filter(r => r.rec.code === 'ask');
   const locks = rows.filter(r => r.rec.code === 'lock');
   const missing = rows.filter(r => !r.paid).length;
+  const manual = chem.items.filter(i => i.tonsManual).length;
 
   return `
   <div class="banner">
@@ -62,11 +63,18 @@ export function chemicalsView(market, chem, prices, byId, state) {
   </div>
 
   <div class="panel">
-    <div class="ph"><h2>מחיר אחרון ששולם</h2><p>הזנת המחיר הנוכחי והקודם הופכת את ההמלצה ממגמת שוק לפער אמיתי</p></div>
+    <div class="ph">
+      <h2>הזנה ידנית</h2>
+      <p>מחיר אחרון ששולם, והכמות השנתית בטונות. המחיר הופך את ההמלצה ממגמת שוק לפער אמיתי,
+      והכמות קובעת את עוצמת המיקוח${manual ? ` · ${manual} כמויות הוזנו ידנית` : ''}</p>
+    </div>
     <div class="pb"><div class="tblwrap"><table>
-      <thead><tr><th>כימיקל</th><th>מחיר נוכחי</th><th>מחיר קודם</th><th>מטבע</th><th>בתוקף מ-</th><th>ספק</th><th></th></tr></thead>
+      <thead><tr><th>כימיקל</th><th>טון/שנה</th><th>מחיר נוכחי</th><th>מחיר קודם</th><th>מטבע</th><th>בתוקף מ-</th><th>ספק</th><th></th></tr></thead>
       <tbody>${chem.items.map(i => priceRow(i, prices[i.item || String(i.n)])).join('')}</tbody>
-    </table></div></div>
+    </table></div>
+    <p class="note">הכמות מהקובץ היא נקודת הפתיחה. מספר שתזין כאן דורס אותה בכל המערכת —
+    בטבלת ההמלצות, בעוצמת המיקוח ובנימוק שה-AI מנסח. שדה ריק מחזיר לערך שבקובץ.</p>
+    </div>
   </div>`;
 }
 
@@ -93,7 +101,7 @@ function rowHtml({ item, exp, paid, rec, fr }) {
   const paidChg = (paid && Number.isFinite(paid.prev) && paid.prev > 0) ? (paid.price - paid.prev) / paid.prev * 100 : null;
   return `<tr>
     <td>${esc(item.he || item.en)}<span class="sub">${esc(item.en)}${item.item ? ' · ' + esc(item.item) : ''} · ${esc(item.origin)}</span></td>
-    <td class="num">${nf(item.tons, item.tons < 10 ? 2 : 0)}</td>
+    <td class="num"${item.tonsManual ? ' title="כמות שהוזנה ידנית"' : ''}>${nf(item.tons, item.tons < 10 ? 2 : 0)}${item.tonsManual ? '<span class="sub">ידני</span>' : ''}</td>
     <td class="num">${item.sup}</td>
     <td class="sub">${esc(fr ? fr.he : '—')}</td>
     <td class="num ${dirClass(fr?.chg)}">${pc(fr?.chg)}</td>
@@ -114,6 +122,8 @@ function priceRow(item, paid) {
   const k = item.item || String(item.n);
   return `<tr data-key="${esc(k)}">
     <td>${esc(item.he || item.en)}<span class="sub">${esc(item.en)}</span></td>
+    <td><input class="inp" type="number" step="any" min="0" data-f="tons" value="${item.tons ?? ''}"
+        placeholder="0" style="width:104px" aria-label="כמות שנתית בטונות"><span class="sub">${item.tonsManual ? 'ידני' : 'מהקובץ'}</span></td>
     <td><input class="inp" type="number" step="any" data-f="price" value="${paid?.price ?? ''}" placeholder="0"></td>
     <td><input class="inp" type="number" step="any" data-f="prev" value="${paid?.prev ?? ''}" placeholder="0"></td>
     <td><select class="inp" data-f="cur" style="width:84px">
@@ -156,15 +166,27 @@ export function wireChemicals(root, state, rerender) {
   root.querySelectorAll('[data-savep]').forEach(btn => {
     btn.onclick = async () => {
       const tr = btn.closest('tr');
-      const f = k => tr.querySelector(`[data-f="${k}"]`).value;
-      const price = Number(f('price'));
-      if (!Number.isFinite(price) || !f('price')) { tr.querySelector('[data-f="price"]').focus(); return; }
+      const f = k => tr.querySelector(`[data-f="${k}"]`).value.trim();
+      const key = tr.dataset.key;
+      const priceTxt = f('price'), tonsTxt = f('tons');
+      if (!priceTxt && !tonsTxt) { tr.querySelector('[data-f="price"]').focus(); return; }
+
       btn.disabled = true; btn.textContent = '…';
-      const r = await send('/api/prices', 'PUT', {
-        [tr.dataset.key]: { price, prev: f('prev') ? Number(f('prev')) : null, cur: f('cur'), date: f('date'), supplier: f('supplier') }
-      });
-      btn.disabled = false; btn.textContent = r.ok ? 'נשמר' : 'שגיאה';
-      if (r.ok) { clearCache(); setTimeout(rerender, 400); }
+      let ok = true;
+
+      // כמות: מספר דורס את הקובץ, שדה ריק מחזיר לערך שבו
+      const tons = await send('/api/prices?what=tons', 'PUT', { [key]: tonsTxt === '' ? null : Number(tonsTxt) });
+      ok = ok && tons.ok;
+
+      if (priceTxt) {
+        const r = await send('/api/prices', 'PUT', {
+          [key]: { price: Number(priceTxt), prev: f('prev') ? Number(f('prev')) : null, cur: f('cur'), date: f('date'), supplier: f('supplier') }
+        });
+        ok = ok && r.ok;
+      }
+
+      btn.disabled = false; btn.textContent = ok ? 'נשמר' : 'שגיאה';
+      if (ok) { clearCache(); setTimeout(rerender, 400); }
     };
   });
 }

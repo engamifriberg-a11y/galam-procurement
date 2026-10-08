@@ -16,6 +16,26 @@ export async function loadPrices() {
   return r.ok ? r.body : {};
 }
 
+// הכמויות השנתיות שהוזנו ידנית. ריק = הכל לפי הקובץ.
+export async function loadTons() {
+  const r = await get('/api/prices?what=tons');
+  return r.ok && r.body && !r.body.error ? r.body : {};
+}
+
+/* הזנה ידנית דורסת את הכמות שבקובץ. אותה לוגיקה בדיוק רצה בשרת
+   (api/_lib/analysis.js), כדי שהמסך וה-AI יראו את אותו מספר. */
+export function applyTons(items, overrides) {
+  if (!overrides || !Object.keys(overrides).length) return items;
+  return items.map(it => {
+    const raw = overrides[it.item || String(it.n)];
+    // null, undefined או מחרוזת ריקה = אין הזנה. Number(null) הוא 0, ולכן
+    // בלי הבדיקה הזו ביטול הזנה היה הופך את הכמות לאפס.
+    if (raw === null || raw === undefined || raw === '') return it;
+    const v = Number(raw);
+    return Number.isFinite(v) ? { ...it, tons: v, tonsManual: true } : it;
+  });
+}
+
 export function indexSeries(market) {
   const m = new Map();
   for (const s of market.series || []) m.set(s.id, s);

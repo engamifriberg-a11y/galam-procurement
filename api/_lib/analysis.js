@@ -72,14 +72,33 @@ export function recommend(item, exp, paid) {
     why: `המחיר ששולם (${pcs(paidChg)}) תואם את תזוזת מנועי העלות (${pcs(market)}). הפער ${gap.toFixed(1)} נקודות, בתוך הרעש.` };
 }
 
+/* כמויות שהוזנו ידנית דורסות את הקובץ. מחזיר עותקים — אסור לשנות את
+   ה-JSON ששמור במטמון המודול. הכמות נכנסת לעוצמת המיקוח, ולכן גם
+   להמלצה ולנימוק שה-AI מנסח, ולא רק לתצוגה. */
+export function applyTons(items, overrides) {
+  if (!overrides || !Object.keys(overrides).length) return items;
+  return items.map(it => {
+    const raw = overrides[it.item || String(it.n)];
+    // null, undefined או מחרוזת ריקה = אין הזנה. Number(null) הוא 0, ולכן
+    // בלי הבדיקה הזו ביטול הזנה היה הופך את הכמות לאפס.
+    if (raw === null || raw === undefined || raw === '') return it;
+    const v = Number(raw);
+    return Number.isFinite(v) ? { ...it, tons: v, tonsManual: true } : it;
+  });
+}
+
 /* התמונה המלאה: סדרות, כימיקלים והמלצות — בבת אחת */
 export async function analyse(window = 'd90') {
   const [series, chem] = await Promise.all([buildSeries(), chemData()]);
   const byId = new Map(series.map(s => [s.id, s]));
-  let prices = {};
-  if (hasDb()) { try { prices = await kvGet('prices:paid') || {}; } catch { prices = {}; } }
+  let prices = {}, tonsOverrides = {};
+  if (hasDb()) {
+    try { prices = await kvGet('prices:paid') || {}; } catch { prices = {}; }
+    try { tonsOverrides = await kvGet('chem:tons') || {}; } catch { tonsOverrides = {}; }
+  }
+  const items = applyTons(chem.items, tonsOverrides);
 
-  const rows = chem.items.map(item => {
+  const rows = items.map(item => {
     const exp = expectedChange(item, byId, window);
     const paid = prices[item.item || String(item.n)] || null;
     const rec = recommend(item, exp, paid);
