@@ -12,7 +12,7 @@ const pass = m => console.log('✓ ' + m);
 
 /* ---------- DOM מינימלי ---------- */
 class El {
-  constructor(id) { this.id = id; this._html = ''; this.dataset = {}; this.style = {}; this.textContent = ''; this.disabled = false; }
+  constructor(id) { this.id = id; this._html = ''; this.dataset = {}; this.style = {}; this.textContent = ''; this.disabled = false; this.value = ''; }
   set innerHTML(v) { this._html = String(v); this._kids = []; log.push([this.id, this._html]); }
   get innerHTML() { return this._html + this._childHtml + (this._kids && this._kids.length ? '' : (this.textContent || '')); }
   // מחזיר אלמנט רשום אם ה-HTML שנכתב אכן מכיל אותו, כדי לדמות חיפוש בתוך תת-עץ
@@ -407,9 +407,7 @@ else {
       ? fail('SPEND בלי נתונים: מוצג פאנל נתונים ריק') : pass('SPEND בלי נתונים: בלי פאנל נתונים ריק');
     SPEND_EMPTY = false;
 
-    const SCREENS = ['exec', 'suppliers', 'items', 'abc', 'price', 'yoy', 'categories', 'save', 'dep',
-      'orders', 'open', 'demand', 'compare', 'inflation', 'efficiency', 'forecast', 'alerts',
-      'advisor', 'centre', 'quality', 'load'];
+    const SCREENS = ['money', 'suppliers', 'items', 'years', 'ai', 'load'];
     let rendered = 0;
     for (const id of SCREENS) {
       const v = new El('#view');
