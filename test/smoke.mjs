@@ -407,7 +407,7 @@ else {
       ? fail('SPEND בלי נתונים: מוצג פאנל נתונים ריק') : pass('SPEND בלי נתונים: בלי פאנל נתונים ריק');
     SPEND_EMPTY = false;
 
-    const SCREENS = ['suppliers', 'items', 'types', 'negotiate', 'ai', 'load'];
+    const SCREENS = ['macro', 'portfolio', 'vendors', 'actions', 'load'];
     let rendered = 0;
     for (const id of SCREENS) {
       const v = new El('#view');
@@ -422,22 +422,36 @@ else {
     }
     rendered === SCREENS.length ? pass(`כל ${SCREENS.length} מסכי SPEND נבנו`) : fail('לא כל מסכי SPEND נבנו');
 
-    // יעדי המו״מ: פער נספר רק בין רכישות של אותו חודש, אחרת ירידת מחיר
-    // בשוק לאורך השנה הייתה נספרת כחיסכון שלא קיים.
+    // המנוע: פער נספר רק בין רכישות של אותו חודש, אחרת ירידת מחיר בשוק
+    // לאורך השנה הייתה נספרת כחיסכון שלא קיים.
     {
-      const neg = await import('../assets/js/tabs/spend/views-negotiate.js');
+      const E = await import('../assets/js/tabs/spend/engine.js');
       const m = await import('../assets/js/tabs/spend/model.js');
       const all = m.ALL();
-      const T = neg.targets(all, null);
-      const byItem = new Map(T.map(r => [r.item, r]));
-      // IT-100 בפיקסצ'ר נקנה פעמיים באותו יום במחירים שונים
-      const t1 = byItem.get('IT-100');
-      t1 ? pass('יעדי מו״מ: מק״ט מזוהה ומדורג') : fail('יעדי מו״מ: לא נוצר יעד');
-      T.every(r => r.saving >= 0) ? pass('יעדי מו״מ: אין פער שלילי') : fail('יעדי מו״מ: התקבל פער שלילי');
-      T.every(r => !r.meas ? r.saving === 0 : true)
-        ? pass('יעדי מו״מ: פריט ביחידה לא מדידה אינו מייצר פער') : fail('יעדי מו״מ: פער חושב על יחידה לא מדידה');
-      T.every(r => r.spread == null || r.best == null || r.paidMo >= r.best)
-        ? pass('יעדי מו״מ: המחיר ששולם אינו נמוך מהטוב ביותר באותו חודש') : fail('יעדי מו״מ: המחירים לא עקביים');
+      const items = E.itemStats(all, null);
+      const sups = E.supplierStats(all, null);
+      const cats = E.typeStats(all, null, 'ptyp');
+      const tot = m.sum(all, m.M.a);
+      items.length ? pass('מנוע: תיק המק״טים חושב') : fail('מנוע: לא חושבו מק״טים');
+      items.every(r => r.gapSaving >= 0) ? pass('מנוע: אין פער שלילי') : fail('מנוע: התקבל פער שלילי');
+      items.every(r => r.meas || r.gapSaving === 0)
+        ? pass('מנוע: יחידה לא מדידה אינה מייצרת פער') : fail('מנוע: פער חושב על יחידה לא מדידה');
+      items.every(r => !r.gapWorst || r.gapWorst.paid >= r.gapWorst.best)
+        ? pass('מנוע: המחיר ששולם אינו נמוך מהטוב ביותר באותו חודש') : fail('מנוע: מחירי הפער לא עקביים');
+      const cum = items.map(r => r.cum);
+      cum.every((v, i) => i === 0 || v >= cum[i - 1] - 1e-9) && (!cum.length || cum[cum.length - 1] <= 100.01)
+        ? pass('מנוע: המצטבר עולה ומסתיים ב-100%') : fail('מנוע: חישוב המצטבר שגוי');
+      const c = E.concentration([50, 30, 20]);
+      c.hhi === 3800 && c.top1 === 50 ? pass('מנוע: HHI מחושב נכון') : fail('מנוע: HHI שגוי — ' + c.hhi);
+      E.concentration([]).hhi === 0 ? pass('מנוע: HHI על רשימה ריקה') : fail('מנוע: HHI קרס על רשימה ריקה');
+      const recs = E.recommendations(items, sups, cats, tot, E.typeStats(all, null, 'styp'));
+      Array.isArray(recs) ? pass(`מנוע: ${recs.length} המלצות נוצרו`) : fail('מנוע: ההמלצות לא נוצרו');
+      recs.every(r => r.action && r.facts && r.facts.length)
+        ? pass('מנוע: לכל המלצה יש פעולה ועובדות') : fail('מנוע: המלצה בלי פעולה או בלי עובדות');
+      recs.every(r => r.value == null || r.valueKind)
+        ? pass('מנוע: לכל סכום כתוב מאיזה סוג הוא') : fail('מנוע: סכום בלי סוג');
+      E.headlines(items, sups, cats, tot, E.concentration(sups.map(r => r.spend))).length >= 3
+        ? pass('מנוע: תובנות הכותרת נבנו') : fail('מנוע: לא נבנו תובנות');
     }
 
     // טעינה אחת, שני מאגרים: גיליון כרטיסי הספקים שבאותו קובץ

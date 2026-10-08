@@ -9,35 +9,34 @@
 
 import { registerTab, esc, get, loading, empty } from '../../core/base.js';
 import {
-  M, F, IDX, buildModel, invalidate, resetF, sum, num, moneyC,
+  M, F, IDX, buildModel, invalidate, resetF, sum, num, moneyC, fkey,
   SUPN, CATN, PTYP, BUY
 } from './model.js';
 import { EL, closeDrawer } from './ui.js';
 import { disposeCharts, resizeCharts } from './charts.js';
-import { viewSuppliers } from './views-suppliers.js';
-import { viewItems } from './views-items.js';
-import { viewTypes } from './views-types.js';
-import { viewNegotiate } from './views-negotiate.js';
-import { viewAdvisor, viewLoad } from './views-system.js';
+import { viewMacro } from './views-macro.js';
+import { viewPortfolio } from './views-portfolio.js';
+import { viewVendors } from './views-vendors.js';
+import { viewActions } from './views-actions.js';
+import { viewLoad } from './views-system.js';
 
 const SCREENS = [
-  { id: 'suppliers', he: 'הוצאות לפי ספק', full: 'הוצאות לפי ספק', render: viewSuppliers,
-    desc: 'אצל מי הכסף יושב: חלוקת ההוצאה בין הספקים, מי גדל ומי קטן מול אשתקד, ועקומת פארטו. לחיצה פותחת כרטיס ספק.' },
-  { id: 'items', he: 'הוצאות לפי מק״ט', full: 'הוצאות לפי מק״ט', render: viewItems,
-    desc: 'על מה הכסף הולך: הוצאה לכל מק״ט, הכמות שנצרכה, המחיר הממוצע ואיך הוא זז. לחיצה פותחת כרטיס מק״ט.' },
-  { id: 'types', he: 'לפי סוג ספק', full: 'ניתוח לפי סוג ספק', render: viewTypes,
-    desc: 'באיזו פעילות הכסף יושב — חומרי גלם, אנרגיה, אריזות, אחזקה, הובלות. בחירת סוג פותחת את הספקים והמק״טים שבתוכו.' },
-  { id: 'negotiate', he: 'יעדי מו״מ', full: 'יעדי משא ומתן', render: viewNegotiate,
-    desc: 'המק״טים היקרים והנצרכים ביותר, מדורגים לפי כדאיות מו״מ, עם פוטנציאל החיסכון והנימוק לכל אחד.' },
-  { id: 'ai', he: 'יועץ AI', full: 'יועץ רכש', render: viewAdvisor,
-    desc: 'שאלות בעברית חופשית על הנתונים. התשובות מחושבות מההזמנות שבסינון הנוכחי, לא מידע כללי.' },
+  { id: 'macro', he: 'מבט-על', full: 'מבט-על ניהולי', render: viewMacro,
+    desc: 'תיק הרכש כולו בעמוד אחד: כמה הוצאנו, מול אשתקד, איפה התקציב יושב ומה זז. כל גרף לחיץ.' },
+  { id: 'portfolio', he: 'תיק המק״טים', full: 'תיק המק״טים', render: viewPortfolio,
+    desc: 'איך בנוי התיק: סיווג ABC, ריכוזיות התקציב, וכסף מול תנודתיות מחיר — איפה שווה להשקיע זמן ניהולי.' },
+  { id: 'vendors', he: 'ספקים ומחזורים', full: 'ספקים ומחזורים', render: viewVendors,
+    desc: 'מצבת הספקים: מחזורים, מדד ריכוזיות, פילוח לפי סוג הזמנה וסוג ספק, ותלות בספק בודד.' },
+  { id: 'actions', he: 'הזדמנויות והמלצות', full: 'הזדמנויות והמלצות', render: viewActions,
+    desc: 'רשימת עבודה: מכרזים, איחוד ספקים, מו״מ ופערי מחיר — כל אחת עם המספרים שמאחוריה.' },
   { id: 'load', he: 'טעינת נתונים', full: 'טעינת נתונים', render: viewLoad,
-    desc: 'העלאת קובץ הזמנות רכש חדש, עם מיפוי עמודות ובדיקת תקינות.' }
+    desc: 'העלאת קובץ הזמנות רכש חדש, עם מיפוי עמודות ובדיקת תקינות. טעינה אחת מפעילה את כל המסכים.' }
 ];
 
 let LOADED = false;
 let LOAD_ERR = null;
 const STATE = {};
+const CACHE = { key: null, map: new Map() };
 
 async function loadData() {
   if (LOADED) return true;
@@ -135,6 +134,14 @@ registerTab({
       redraw: () => render2(),
       state: (k, init) => (STATE[k] ||= init),
       hasData: () => LOADED,
+      // המסכים חולקים את אותם חישובים כבדים. המטמון נפסל אוטומטית בכל
+      // שינוי סינון, כך שאין סיכוי ששני מסכים יראו מספרים שונים.
+      cache: (key, build) => {
+        const k = fkey();
+        if (CACHE.key !== k) { CACHE.key = k; CACHE.map = new Map(); }
+        if (!CACHE.map.has(key)) CACHE.map.set(key, build());
+        return CACHE.map.get(key);
+      },
       track: { opps: {} },
       // תיאור הסינון הפעיל, כדי שהיועץ ידע על מה הוא עונה
       activeChips: () => {
