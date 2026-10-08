@@ -319,6 +319,9 @@ tr.crow.s-none td:first-child{box-shadow:inset 4px 0 0 var(--line)}
 .state.off{background:var(--surface2); color:var(--ink3); border-color:var(--line)}
 .state:hover{border-color:currentColor}
 
+/* מספר שאפשר לערוך במקום, בתוך הטבלה */
+.celledit{cursor:pointer; border-bottom:1px dashed var(--line); font-variant-numeric:tabular-nums}
+.celledit:hover{color:var(--accent); border-color:var(--accent)}
 .money{cursor:pointer; font-variant-numeric:tabular-nums}
 .money small{color:var(--ink3); font-size:12px}
 .money:hover{color:var(--accent)}

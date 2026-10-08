@@ -41,7 +41,7 @@ export function chemicalsView(market, chem, prices, byId, state) {
   <div class="panel">
     <div class="ph">
       <h2>המלצות קנייה</h2>
-      <p>${asks.length} פריטים לפנייה להוזלה · ${locks.length} לנעילת מחיר</p>
+      <p>${asks.length} פריטים לפנייה להוזלה · ${locks.length} לנעילת מחיר · לחיצה על מספר בעמודת טון/שנה עורכת אותו</p>
       <span class="right">מיון:
         <select class="inp" data-chemsort style="width:186px;text-align:start">
           ${SORTS.map(([v, he]) => `<option value="${v}" ${v === `${sort}:${dir}` ? 'selected' : ''}>${he}</option>`).join('')}
@@ -101,7 +101,8 @@ function rowHtml({ item, exp, paid, rec, fr }) {
   const paidChg = (paid && Number.isFinite(paid.prev) && paid.prev > 0) ? (paid.price - paid.prev) / paid.prev * 100 : null;
   return `<tr>
     <td>${esc(item.he || item.en)}<span class="sub">${esc(item.en)}${item.item ? ' · ' + esc(item.item) : ''} · ${esc(item.origin)}</span></td>
-    <td class="num"${item.tonsManual ? ' title="כמות שהוזנה ידנית"' : ''}>${nf(item.tons, item.tons < 10 ? 2 : 0)}${item.tonsManual ? '<span class="sub">ידני</span>' : ''}</td>
+    <td class="num"><span class="celledit" data-tons="${esc(item.item || String(item.n))}" role="button" tabindex="0"
+        title="${item.tonsManual ? 'כמות שהוזנה ידנית · ' : ''}לחיצה לעריכת הכמות">${nf(item.tons, item.tons < 10 ? 2 : 0)}</span>${item.tonsManual ? '<span class="sub">ידני</span>' : ''}</td>
     <td class="num">${item.sup}</td>
     <td class="sub">${esc(fr ? fr.he : '—')}</td>
     <td class="num ${dirClass(fr?.chg)}">${pc(fr?.chg)}</td>
@@ -112,6 +113,37 @@ function rowHtml({ item, exp, paid, rec, fr }) {
     <td><span class="pill ${rec.cls}">${esc(rec.he)}</span><span class="sub">${esc(rec.why)}</span></td>
     <td style="min-width:210px"><button class="btn sm" data-pitch="${esc(item.item || String(item.n))}">נסח טיעון</button><span class="sub" data-pitch-out></span></td>
   </tr>`;
+}
+
+/* עריכת כמות במקום, בתוך טבלת ההמלצות.
+   Enter או יציאה מהשדה שומרים, Escape מבטל, שדה ריק מחזיר לערך שבקובץ. */
+function editTons(span, rerender) {
+  const key = span.dataset.tons;
+  const inp = document.createElement('input');
+  inp.type = 'number'; inp.className = 'inp'; inp.min = '0'; inp.step = 'any';
+  inp.style.width = '92px'; inp.style.textAlign = 'end';
+  inp.setAttribute('aria-label', 'כמות שנתית בטונות');
+  inp.value = span.textContent.replace(/[^\d.]/g, '');
+  span.replaceWith(inp);
+  inp.focus(); inp.select();
+
+  let done = false;
+  const commit = async save => {
+    if (done) return;
+    done = true;
+    if (!save) return rerender();
+    const txt = inp.value.trim();
+    inp.disabled = true;
+    const r = await send('/api/prices?what=tons', 'PUT', { [key]: txt === '' ? null : Number(txt) });
+    if (!r.ok) { inp.disabled = false; done = false; inp.focus(); return; }
+    clearCache();
+    rerender();
+  };
+  inp.onkeydown = e => {
+    if (e.key === 'Enter') { e.preventDefault(); commit(true); }
+    if (e.key === 'Escape') { e.preventDefault(); commit(false); }
+  };
+  inp.onblur = () => commit(true);
 }
 
 function breakdown(exp) {
@@ -150,6 +182,13 @@ export function wireChemicals(root, state, rerender) {
     state.dir = state.sort === 'tons' ? (state.dir === 1 ? -1 : 1) : -1;
     state.sort = 'tons';
     rerender();
+  });
+
+  // עריכת הכמות ישירות בעמודה: לחיצה על המספר הופכת אותו לשדה
+  root.querySelectorAll('[data-tons]').forEach(el => {
+    const open = () => editTons(el, rerender);
+    el.onclick = open;
+    el.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } };
   });
 
   // נימוק לשיחה מול הספק. המודל מקבל את המספרים של השורה ומנסח מהם בלבד.

@@ -191,6 +191,8 @@ els.get('#subview').innerHTML.includes('data-chemsort')
     ? pass('כמות שהוזנה ידנית דורסת את הקובץ וקובעת את הסדר') : fail('ההזנה הידנית לא נתפסה במיון: ' + after);
   const html = chemicalsView({}, edited, {}, new Map(), { win: 'd90', sort: 'tons', dir: -1 });
   html.includes('data-f="tons"') ? pass('שדה הזנת כמות בכל שורה') : fail('שדה הזנת הכמות חסר');
+  html.includes('data-tons=') && html.includes('class="celledit"')
+    ? pass('עמודת הטונות לחיצה לעריכה') : fail('אי אפשר לערוך את עמודת הטונות');
   html.includes('ידני') && html.includes('מהקובץ')
     ? pass('מסומן מה הוזן ידנית ומה מהקובץ') : fail('חסר סימון מקור הכמות');
   applyTons(chem.items, {})[0].tons === 5 ? pass('בלי הזנה, הכמות נשארת מהקובץ') : fail('הכמות מהקובץ נדרסה לשווא');
