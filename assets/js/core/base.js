@@ -14,9 +14,18 @@ export function registerTab(tab) { TABS.push(tab); }
 
 /* ---------- מטמון נתונים משותף ---------- */
 const cache = new Map();
+
+// פג תוקף ההתחברות בזמן שהדף פתוח: במקום שורת שגיאה בכל לשונית, חוזרים למסך הכניסה.
+function checkAuth(status) {
+  if (status !== 401 || typeof location === 'undefined') return;
+  const back = encodeURIComponent(location.pathname + location.search + location.hash);
+  location.replace(`/login?next=${back}`);
+}
+
 export async function get(url, { fresh = false } = {}) {
   if (!fresh && cache.has(url)) return cache.get(url);
   const p = fetch(url).then(async r => {
+    checkAuth(r.status);
     const body = await r.json().catch(() => ({ error: `HTTP ${r.status}` }));
     return { ok: r.ok, status: r.status, body };
   }).catch(e => ({ ok: false, status: 0, body: { error: String(e.message || e) } }));
@@ -25,6 +34,7 @@ export async function get(url, { fresh = false } = {}) {
 }
 export async function send(url, method, payload) {
   const r = await fetch(url, { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+  checkAuth(r.status);
   const body = await r.json().catch(() => ({}));
   return { ok: r.ok, status: r.status, body };
 }

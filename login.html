@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>כניסה · ניהול רכש גלעם</title>
+<meta name="theme-color" content="#0E6E6A">
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230E6E6A'/%3E%3Cpath d='M8 21l5-9 4 6 3-4 4 7z' fill='white'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700&family=Heebo:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+/* מסך הכניסה עומד בפני עצמו: הוא נטען לפני כל שאר האתר ולכן אינו תלוי בגיליון הסגנונות הראשי */
+:root{
+  --page:#EDF1F2; --surface:#FFFFFF; --ink:#0F2230; --ink2:#41586A; --ink3:#7A8C99;
+  --line:#D5DEE1; --accent:#0E6E6A; --accent-soft:#D9EAE8; --err:#A1392F;
+  --shadow:0 1px 2px rgba(15,34,48,.06),0 14px 40px rgba(15,34,48,.10);
+  box-sizing:border-box;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --page:#0D171E; --surface:#13222C; --ink:#E6EEF1; --ink2:#A9BFCB; --ink3:#78909E;
+    --line:#263B47; --accent:#49B3AC; --accent-soft:#17403E; --err:#DD7A6E;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 14px 40px rgba(0,0,0,.45);
+  }
+}
+*,*::before,*::after{box-sizing:inherit}
+body{
+  margin:0; min-height:100dvh; background:var(--page); color:var(--ink);
+  font-family:"Heebo","Segoe UI",Arial,sans-serif; font-size:15px; line-height:1.55;
+  display:grid; place-items:center; padding:24px 16px;
+}
+/* פס עדין בגוון המותג מאחורי הכרטיס */
+body::before{
+  content:""; position:fixed; inset:0 0 auto; height:46vh; pointer-events:none;
+  background:radial-gradient(120% 90% at 50% 0%, var(--accent-soft), transparent 70%);
+}
+.card{
+  position:relative; width:100%; max-width:392px; background:var(--surface);
+  border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow); padding:30px 28px 26px;
+}
+.logo{display:block; height:46px; width:auto; margin:0 auto 18px}
+h1{font-family:"Frank Ruhl Libre",Georgia,serif; font-size:23px; margin:0 0 4px; text-align:center; letter-spacing:-.01em}
+.sub{margin:0 0 22px; text-align:center; color:var(--ink3); font-size:13.5px}
+label{display:block; font-size:13px; color:var(--ink2); margin:0 0 6px}
+input{
+  width:100%; font:inherit; color:var(--ink); background:var(--page);
+  border:1px solid var(--line); border-radius:9px; padding:11px 12px; margin:0 0 15px;
+}
+input:focus{outline:2px solid var(--accent); outline-offset:1px; border-color:transparent}
+.pw{position:relative}
+.pw input{padding-inline-start:46px}
+.eye{
+  position:absolute; inset-inline-start:6px; top:5px; height:34px; width:34px; border:0; border-radius:8px;
+  background:transparent; color:var(--ink3); cursor:pointer; font-size:15px; line-height:34px; padding:0;
+}
+.eye:hover{color:var(--accent)}
+button.go{
+  width:100%; font:inherit; font-weight:500; cursor:pointer; margin-top:4px;
+  background:var(--accent); color:#fff; border:1px solid var(--accent);
+  border-radius:9px; padding:11px 14px;
+}
+button.go:hover{filter:brightness(1.07)}
+button.go:disabled{opacity:.6; cursor:default}
+.msg{
+  min-height:20px; margin:13px 2px 0; font-size:13.5px; color:var(--err); text-align:center;
+}
+.foot{margin:22px 0 0; text-align:center; font-size:12px; color:var(--ink3)}
+</style>
+</head>
+<body>
+<main class="card">
+  <img class="logo" src="/assets/img/galam-logo.png" alt="גלעם">
+  <h1>ניהול רכש</h1>
+  <p class="sub">הכניסה למשתמשים מורשים בלבד</p>
+
+  <form id="f" autocomplete="on">
+    <label for="user">שם משתמש</label>
+    <input id="user" name="username" type="text" autocomplete="username" autocapitalize="none"
+           spellcheck="false" required dir="ltr" style="text-align:start">
+
+    <label for="pass">סיסמה</label>
+    <div class="pw">
+      <input id="pass" name="password" type="password" autocomplete="current-password"
+             required dir="ltr" style="text-align:start">
+      <button class="eye" type="button" id="eye" aria-label="הצגת הסיסמה" title="הצגת הסיסמה">●</button>
+    </div>
+
+    <button class="go" type="submit" id="go">כניסה</button>
+    <p class="msg" id="msg" role="status" aria-live="polite"></p>
+  </form>
+
+  <p class="foot">© כל הזכויות שמורות ל<b>עמי פרייברג</b></p>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const msg = $('#msg');
+
+$('#eye').onclick = () => {
+  const p = $('#pass');
+  p.type = p.type === 'password' ? 'text' : 'password';
+  $('#eye').textContent = p.type === 'password' ? '●' : '○';
+  p.focus();
+};
+
+// לאן לחזור אחרי הכניסה. רק נתיב פנימי, כדי שקישור לא יוכל להפנות לאתר אחר.
+function target() {
+  const n = new URLSearchParams(location.search).get('next') || '/';
+  return /^\/(?!\/)/.test(n) ? n : '/';
+}
+
+$('#f').onsubmit = async e => {
+  e.preventDefault();
+  const go = $('#go');
+  go.disabled = true; go.textContent = 'בודק…'; msg.textContent = '';
+  try {
+    const r = await fetch('/api/login', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ user: $('#user').value, pass: $('#pass').value })
+    });
+    const b = await r.json().catch(() => ({}));
+    if (r.ok) { location.replace(target()); return; }
+    msg.textContent = b.message || 'הכניסה נכשלה. נסה שוב.';
+  } catch (err) {
+    msg.textContent = 'אין חיבור לשרת. בדוק את האינטרנט ונסה שוב.';
+  }
+  go.disabled = false; go.textContent = 'כניסה';
+  $('#pass').select();
+};
+
+$('#user').focus();
+</script>
+</body>
+</html>

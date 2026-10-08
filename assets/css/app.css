@@ -63,6 +63,7 @@ header{background:var(--surface); border-bottom:1px solid var(--line); position:
 .btn.primary:hover{opacity:.9; color:#fff}
 .btn[disabled]{opacity:.55; cursor:progress}
 .btn.sm{padding:4px 11px; font-size:12.5px}
+a.btn{text-decoration:none; display:inline-block}
 .icon-btn{background:none; border:1px solid var(--line); color:var(--ink2); border-radius:999px; width:34px; height:34px; cursor:pointer}
 .icon-btn:hover{border-color:var(--accent); color:var(--accent)}
 

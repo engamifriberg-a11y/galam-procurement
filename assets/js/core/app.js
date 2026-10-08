@@ -114,6 +114,16 @@ document.addEventListener('visibilitychange', () => {
   if (!document.hidden && LIVE.on && LIVE.lastAt && Date.now() - LIVE.lastAt > LIVE.everyMs) pull();
 });
 
+// כפתור היציאה מופיע רק כשהאתר באמת מוגן בשם משתמש וסיסמה
+(async () => {
+  const el = $('#logout');
+  if (!el) return;
+  const r = await get('/api/login');
+  if (!r.ok || !r.body?.protected) return;
+  el.hidden = false;
+  if (r.body.user) el.title = `מחובר כ-${r.body.user}`;
+})();
+
 buildTabs();
 if (!location.hash) location.hash = TABS[0].id;
 render().then(() => { LIVE.lastAt = Date.now(); startLive(); });
