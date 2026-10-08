@@ -228,17 +228,13 @@ registerTab({
     if (!LOADED) {
       view.innerHTML = loading('טוען את מחסן נתוני הרכש');
       const ok = await loadData();
-      if (!ok && !(LOAD_ERR === 'empty' && sub === 'load')) {
-        view.innerHTML = LOAD_ERR === 'empty'
-          ? empty('לא נטענו עדיין נתוני רכש', 'העלה את קובץ הזמנות הרכש במסך טעינת הנתונים כדי להפעיל את הלשונית.')
-          : empty('טעינת נתוני הרכש נכשלה', LOAD_ERR || '');
-        if (LOAD_ERR === 'empty') {
-          const b = EL('button', { class: 'btn primary', style: 'margin-top:14px', text: 'למסך טעינת הנתונים', onclick: () => go('spend', 'load') });
-          view.querySelector('.empty').appendChild(b);
-        }
-        return;
-      }
-      if (ok) loadTrack();
+      if (!ok) {
+        if (LOAD_ERR !== 'empty') { view.innerHTML = empty('טעינת נתוני הרכש נכשלה', LOAD_ERR || ''); return; }
+        // אין עדיין נתונים: נפתחים ישר על מסך הטעינה, כך שאזור גרירת הקובץ
+        // נמצא מול העיניים. מסך ריק שמפנה למסך אחר הוא צעד מיותר כשברור
+        // שהדבר היחיד שאפשר לעשות כאן הוא להעלות קובץ.
+        sub = 'load';
+      } else loadTrack();
     }
 
     const screen = SCREENS.find(s => s.id === sub) || SCREENS[0];

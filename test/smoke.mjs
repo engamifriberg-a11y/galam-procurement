@@ -145,11 +145,15 @@ const SPEND_FIXTURE = (() => {
   };
 })();
 
+// כשדולק, /api/spend מחזיר מאגר ריק — מצב ההתחלה של עמי
+let SPEND_EMPTY = false;
+
 globalThis.fetch = async (url) => {
   const u = String(url);
   if (u.startsWith('/api/spend')) {
     const body = u.includes('track=1') ? { opps: {}, targets: {} }
       : u.includes('ai=1') ? { answer: 'תשובת בדיקה.', provider: 'test', model: 'stub' }
+      : SPEND_EMPTY ? { empty: true }
       : SPEND_FIXTURE;
     return { ok: true, status: 200, json: async () => body };
   }
@@ -388,6 +392,21 @@ else {
   const sp = tabs().find(t => t.id === 'spend');
   if (!sp) fail('לשונית SPEND לא נרשמה');
   else {
+    // מצב ההתחלה: אין עדיין נתונים. הלשונית חייבת להציג מיד את אזור גרירת
+    // הקובץ, ולא מסך ריק שמפנה למסך אחר.
+    SPEND_EMPTY = true;
+    const v0 = new El('#view');
+    await sp.render(v0, { sub: 'exec', go: () => {} });
+    await new Promise(r => setTimeout(r, 40));
+    const h0 = v0.innerHTML;
+    h0.includes('dropzone') && h0.includes('גרור לכאן קובץ אקסל')
+      ? pass('SPEND בלי נתונים: אזור גרירת הקובץ מוצג מיד') : fail('SPEND בלי נתונים: אין לאן לשים את הקובץ');
+    h0.includes('העלאת קובץ הזמנות הרכש')
+      ? pass('SPEND בלי נתונים: פאנל ההעלאה הוא הראשון') : fail('SPEND בלי נתונים: פאנל ההעלאה אינו ראשון');
+    h0.includes('הנתונים שנטענים כרגע')
+      ? fail('SPEND בלי נתונים: מוצג פאנל נתונים ריק') : pass('SPEND בלי נתונים: בלי פאנל נתונים ריק');
+    SPEND_EMPTY = false;
+
     const SCREENS = ['exec', 'suppliers', 'items', 'abc', 'price', 'yoy', 'categories', 'save', 'dep',
       'orders', 'open', 'demand', 'compare', 'inflation', 'efficiency', 'forecast', 'alerts',
       'advisor', 'centre', 'quality', 'load'];

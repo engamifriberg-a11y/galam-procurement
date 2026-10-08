@@ -454,10 +454,10 @@ function loadXlsx() {
 
 export function viewLoad(root, idx, ctx) {
   const loaded = ctx.hasData ? ctx.hasData() : !!M.N;
-  const cur = panel(root, 'הנתונים שנטענים כרגע');
-  if (!loaded) {
-    cur.appendChild(EL('p', { class: 'banner', text: 'עדיין לא נטענו נתוני רכש. גרור לכאן את קובץ הזמנות הרכש כדי להפעיל את הלשונית — הקובץ נקרא בדפדפן, ורק התוצאה נשמרת בשרת.' }));
-  } else {
+  // כשאין נתונים, אזור גרירת הקובץ הוא הדבר הראשון על המסך. פאנל "הנתונים
+  // שנטענים כרגע" נפתח רק כשבאמת יש מה להציג בו.
+  if (loaded) {
+    const cur = panel(root, 'הנתונים שנטענים כרגע');
     kv(cur, [
       ['מקור', esc(M.meta.sourceFile || '—')],
       ['שורות', num(M.N)],
@@ -468,7 +468,12 @@ export function viewLoad(root, idx, ctx) {
     ]);
   }
 
-  const up = panel(root, 'העלאת קובץ חדש', 'XLSX או CSV · הקובץ נקרא בדפדפן, ורק התוצאה הדחוסה נשמרת בשרת');
+  const up = panel(root,
+    loaded ? 'העלאת קובץ חדש' : 'העלאת קובץ הזמנות הרכש',
+    loaded
+      ? 'XLSX או CSV · הקובץ נקרא בדפדפן, ורק התוצאה הדחוסה נשמרת בשרת'
+      : 'גרור לכאן את הקובץ, או בחר אותו מהמחשב. XLSX או CSV · הקובץ נקרא בדפדפן, '
+        + 'תבחר את הגיליון ותאשר את מיפוי העמודות, ומיד אחר כך כל המסכים נפתחים עם הנתונים שלך');
   const drop = EL('div', { class: 'dropzone' });
   drop.innerHTML = '<b>גרור לכאן קובץ אקסל</b><span>או</span>';
   const fi = EL('input', { type: 'file', accept: '.xlsx,.xlsm,.xls,.csv', hidden: 'hidden' });
