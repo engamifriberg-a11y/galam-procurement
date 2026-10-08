@@ -178,6 +178,64 @@ export function autoMap(headers) {
   });
   return out;
 }
+
+/* ---------- גיליון כרטיס הספקים שבאותו קובץ ----------
+   הקובץ שמייצאים מ-Priority מכיל את שורות ההזמנה ואת כרטיסי הספקים בשני
+   גיליונות. אין סיבה להעלות אותו פעמיים: אותה טעינה מעדכנת גם את לשונית
+   הספקים, ולכן הסקור, תנאי התשלום ופרטי הקשר תמיד מאותו יום כמו ההזמנות. */
+const SUP_COLS = {
+  id: ['מס.ספק', 'מס ספק', 'מספר ספק', "מס' ספק"],
+  nm: ['שם ספק'], en: ['שם לועזי'], tc: ['סוג ספק'], t: ['תאור סוג ספק'],
+  st: ['סטטוס'], cur: ['מטבע'], own: ['לטיפול'], dt: ['תאריך פתיחה'],
+  tel: ['טלפון'], fax: ['פקס'], em: ['e-mail', 'אימייל'],
+  city: ['עיר', 'עיר ומדינה'], cn: ['ארץ'], web: ['web site', 'אתר'],
+  vat: ['מס. עוסק מורשה', 'ח.פ'], scr: ['סקור'], ind: ['סקור ענפי'],
+  crd: ['המלצת אשראי'], cls: ['סיווג תאור'], emp: ['מספר עובדים'],
+  yr: ['שנת הקמה'], field: ['תחום עיסוק'], ord: ['דרישה\\הזמנה']
+};
+const NUMF = new Set(['scr', 'ind', 'crd', 'emp', 'yr']);
+
+export function looksLikeSupplierSheet(headers) {
+  const h = headers.map(norm);
+  const hasId = SUP_COLS.id.some(c => h.includes(norm(c)));
+  const hasName = h.includes(norm('שם ספק'));
+  const isOrders = h.includes(norm('הזמנת רכש')) || h.includes(norm('סכום (ILS)'));
+  return hasId && hasName && !isOrders;
+}
+
+export function mapSupplierRows(headers, rows) {
+  const h = headers.map(norm);
+  const at = names => { for (const n of names) { const i = h.indexOf(norm(n)); if (i >= 0) return i; } return -1; };
+  const idx = {};
+  for (const k in SUP_COLS) idx[k] = at(SUP_COLS[k]);
+  // שתי עמודות "תנאי תשלום": הראשונה הקוד, האחרונה התיאור הקריא
+  const terms = h.map((x, i) => x === norm('תנאי תשלום') ? i : -1).filter(i => i >= 0);
+  const addr = ['כתובת', 'כתובת - שורה 2', 'כתובת - שורה 3'].map(n => at([n])).filter(i => i >= 0);
+  const txt = (r, i) => i >= 0 ? String(r[i] ?? '').trim() : '';
+  const out = [];
+  for (const r of rows) {
+    const id = txt(r, idx.id);
+    if (!id) continue;
+    const o = { id };
+    for (const k in idx) {
+      if (k === 'id') continue;
+      const v = txt(r, idx[k]);
+      if (!v) continue;
+      if (NUMF.has(k)) { const n = Number(v.replace(/[^\d.-]/g, '')); if (Number.isFinite(n)) o[k] = n; }
+      else o[k] = v;
+    }
+    if (!o.t) o.t = 'לא מסווג';
+    if (!o.cn) o.cn = 'לא ידוע';
+    o.pt = terms.length ? txt(r, terms[0]) || '—' : '—';
+    o.ptd = terms.length > 1 ? (txt(r, terms[terms.length - 1]) || o.pt) : o.pt;
+    if (o.ptd === '—') o.ptd = 'לא הוגדר';
+    const ad = addr.map(i => txt(r, i)).filter(Boolean).join(' ');
+    if (ad) o.ad = ad;
+    out.push(o);
+  }
+  return out;
+}
+
 const EPOCH_ISO = '2014-01-01';
 const EPOCH_MS = Date.parse(EPOCH_ISO + 'T00:00:00Z');
 const dnum = (y, m, d) => Math.round((Date.UTC(y, m - 1, d) - EPOCH_MS) / 864e5);
@@ -343,6 +401,20 @@ export function viewLoad(root, idx, ctx) {
     const step = EL('div');
     out.appendChild(step);
 
+    // מחפשים באותו קובץ גיליון של כרטיסי ספקים, כדי לא לדרוש העלאה שנייה
+    let supCand = null;
+    try {
+      const XLSX = await loadXlsx();
+      for (const nm of wb.SheetNames) {
+        const aoa = XLSX.utils.sheet_to_json(wb.Sheets[nm], { header: 1, raw: true, blankrows: false, defval: '' });
+        if (!aoa.length) continue;
+        const hd = aoa[0].map(x => String(x ?? '').trim());
+        if (!looksLikeSupplierSheet(hd)) continue;
+        const mapped = mapSupplierRows(hd, aoa.slice(1));
+        if (mapped.length) { supCand = { name: nm, rows: mapped }; break; }
+      }
+    } catch { /* אם לא נמצא, פשוט אין עדכון לספקים */ }
+
     const load = async () => {
       const XLSX = await loadXlsx();
       const aoa = XLSX.utils.sheet_to_json(wb.Sheets[sel.value], { header: 1, raw: true, blankrows: false, defval: '' });
@@ -377,6 +449,14 @@ export function viewLoad(root, idx, ctx) {
       });
 
       const act = EL('div', { class: 'inline-form', style: 'margin-top:12px' });
+      let supBox = null;
+      if (supCand) {
+        const lab = EL('label', { class: 'inline-form', style: 'gap:6px;cursor:pointer' });
+        supBox = EL('input', { type: 'checkbox' });
+        supBox.checked = true;
+        lab.append(supBox, EL('span', { text: `לעדכן גם את מאגר הספקים מגיליון «${supCand.name}» (${num(supCand.rows.length)} ספקים)` }));
+        act.appendChild(lab);
+      }
       const go = EL('button', { class: 'btn primary', text: 'קלוט ושמור בשרת', onclick: async () => {
         const mm = {};
         tw.querySelectorAll('select[data-f]').forEach(s => { if (s.value !== '') mm[s.dataset.f] = +s.value; });
@@ -394,6 +474,14 @@ export function viewLoad(root, idx, ctx) {
         buildModel(res.payload);
         clearAnalyticsCache();
         if (ctx.markLoaded) ctx.markLoaded(); else resetF();
+        let supMsg = null;
+        if (supBox && supBox.checked && supCand) {
+          const r2 = await send('/api/suppliers', 'PUT', { version: new Date().toISOString().slice(0, 10), rows: supCand.rows });
+          supMsg = r2.ok
+            ? `${num(r2.body?.rows ?? supCand.rows.length)} ספקים מגיליון «${supCand.name}»`
+            : 'העדכון נכשל: ' + esc(r2.body?.error || r2.status);
+        }
+
         const rep = panel(step, 'דוח קליטה');
         kv(rep, [
           ['קובץ', esc(file.name)], ['שורות שנקלטו', num(M.N)], ['שורות שנדחו', num(res.errs.length)],
@@ -401,7 +489,8 @@ export function viewLoad(root, idx, ctx) {
           ['תאריכים לא תקינים', num(res.badDate)],
           ['התקופה שזוהתה', `${dstr(M.minD)} – ${dstr(M.maxD)}`],
           ['סך ההוצאה', money((() => { let s = 0; for (let k = 0; k < M.N; k++) s += M.a[k]; return s; })())],
-          [prevSrc ? 'הוחלף' : 'מצב קודם', prevSrc ? `${esc(prevSrc)} (${num(prevRows)} שורות)` : 'לא היו נתונים במערכת']
+          [prevSrc ? 'הוחלף' : 'מצב קודם', prevSrc ? `${esc(prevSrc)} (${num(prevRows)} שורות)` : 'לא היו נתונים במערכת'],
+          ...(supMsg ? [['מאגר הספקים עודכן', supMsg]] : [])
         ]);
         if (res.errs.length) {
           const e = panel(rep, 'שורות שנפסלו והסיבה');

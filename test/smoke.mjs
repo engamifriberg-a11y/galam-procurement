@@ -422,6 +422,24 @@ else {
     }
     rendered === SCREENS.length ? pass(`כל ${SCREENS.length} מסכי SPEND נבנו`) : fail('לא כל מסכי SPEND נבנו');
 
+    // טעינה אחת, שני מאגרים: גיליון כרטיסי הספקים שבאותו קובץ
+    {
+      const sys = await import('../assets/js/tabs/spend/views-system.js');
+      const hd = ['מס.ספק', 'תנאי תשלום', 'תנאי תשלום', 'תאור סוג ספק', 'שם ספק', 'סטטוס', 'סקור', 'סקור ענפי', 'כתובת', 'e-mail'];
+      const ordersHd = ['מס.ספק', 'שם ספק', 'הזמנת רכש', 'מק\'ט', 'סכום (ILS)'];
+      sys.looksLikeSupplierSheet(hd) ? pass('גיליון כרטיסי ספקים מזוהה') : fail('גיליון הספקים לא זוהה');
+      !sys.looksLikeSupplierSheet(ordersHd) ? pass('גיליון ההזמנות אינו נחשב לכרטיסי ספקים') : fail('גיליון ההזמנות זוהה בטעות');
+      const mapped = sys.mapSupplierRows(hd, [
+        ['200-000005', 'E60', 'שוטף + 60 יום', 'אנזימים', 'דיפריס', 'פעיל', '48', '36', 'הברזל 32', 'a@b.c'],
+        ['', 'X', 'Y', '', '', '', '', '', '', '']
+      ]);
+      mapped.length === 1 ? pass('שורה בלי מספר ספק נדחית') : fail('שורה ריקה נקלטה');
+      mapped[0].ptd === 'שוטף + 60 יום' && mapped[0].pt === 'E60'
+        ? pass('תנאי תשלום: הקוד והתיאור נשמרים בנפרד') : fail('תנאי התשלום מופו שגוי: ' + JSON.stringify(mapped[0]));
+      mapped[0].scr === 48 && mapped[0].ind === 36
+        ? pass('סקור וסקור ענפי נקלטים כמספרים') : fail('הסקור לא נקלט כמספר');
+    }
+
     // המנוע עצמו: אותם מספרים שהמסכים מציגים, מול חישוב ישיר
     const m = await import('../assets/js/tabs/spend/model.js');
     const an = await import('../assets/js/tabs/spend/analytics.js');
