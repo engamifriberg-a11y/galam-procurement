@@ -355,3 +355,111 @@ tr.crow.s-none td:first-child{box-shadow:inset 4px 0 0 var(--line)}
   .aitem{grid-template-columns:62px 1fr; row-gap:3px}
   .aitem .when{grid-column:2; text-align:start}
 }
+
+/* ======================================================================
+   לשונית SPEND. כל מה שלמטה נשען על אותם משתני צבע של האתר, ומוסיף רק
+   את מה שלא היה קיים: קופסת גרף, שורת התראה, חלונית בחירה מרובה ושיחה.
+   ====================================================================== */
+.subtabs .subtab em{font-style:normal; font-size:11px; opacity:.65; margin-inline-end:5px; font-weight:700}
+.spend-head{margin:4px 0 14px}
+.spend-head h2{font-size:21px; display:flex; align-items:baseline; gap:8px}
+.spend-head h2 em{font-style:normal; font-family:"Heebo",sans-serif; font-size:13px; color:var(--ink3); font-weight:700}
+.spend-head p{margin:4px 0 0; color:var(--ink3); font-size:13.5px; max-width:78ch}
+.spend-body>.panel:first-child{margin-top:0}
+.spend-body>.grid2,.spend-body>.grid3{margin-top:18px}
+.spend-filters{margin-bottom:18px}
+.spend-filters .bar{border-top:0}
+.spend-filters .bar+.bar{border-top:1px solid var(--line2)}
+.flbl{font-size:11px; font-weight:700; color:var(--ink3); letter-spacing:.05em; white-space:nowrap}
+.chip{cursor:pointer; background:var(--surface2); color:var(--ink2); border:1px solid var(--line)}
+.chip:hover{border-color:var(--accent); color:var(--accent); filter:none}
+.chip.on{background:var(--accent); border-color:var(--accent); color:#fff}
+.chip.on:hover{color:#fff}
+
+/* אריחי מדד של SPEND: וריאנט של .tiles עם ערך ראשי מודגש */
+.tiles .tile.lead{background:linear-gradient(170deg,var(--accent-soft),var(--surface))}
+.tile>span{font-size:13px; color:var(--ink2); display:flex; align-items:center; gap:6px; min-width:0}
+.tile>span .qm{font-style:normal; font-size:11px; color:var(--ink3); cursor:help}
+.tile>b{word-break:break-word; white-space:normal}
+.bignum{font-family:"Frank Ruhl Libre",Georgia,serif; font-weight:700; font-size:30px; line-height:1.15; margin:2px 0 2px}
+
+/* קופסת גרף */
+.chartbox{width:100%; min-width:0; height:280px; display:flex; align-items:center; justify-content:center}
+.chartbox .chartfail{color:var(--ink3); font-size:12.5px}
+.panel .pb>.chartbox{margin:2px 0}
+
+/* טבלאות SPEND */
+.spend-body td.wrap,.drawer td.wrap{white-space:normal; min-width:140px; max-width:380px}
+.spend-body th.sortable,.drawer th.sortable{cursor:pointer; user-select:none}
+.spend-body th.sortable.on:after,.drawer th.sortable.on:after{content:"▾"; margin-inline-start:4px; font-size:9px}
+.spend-body th.sortable.on.asc:after,.drawer th.sortable.on.asc:after{content:"▴"}
+.spend-body tbody tr.click,.drawer tbody tr.click{cursor:pointer}
+.cellbar{display:inline-block; width:48px; height:6px; border-radius:3px; background:var(--line2);
+  overflow:hidden; vertical-align:middle; margin-inline-start:8px}
+.cellbar i{display:block; height:100%; background:var(--accent)}
+.pillrow{display:flex; gap:5px; flex-wrap:wrap; margin-top:8px}
+
+/* שורת התראה */
+.alertrow{display:flex; gap:11px; padding:12px 0; border-bottom:1px solid var(--line2); cursor:pointer}
+.alertrow:last-child{border-bottom:0}
+.alertrow:hover{background:var(--surface2)}
+.alertrow .sev{width:4px; border-radius:2px; flex:none; background:var(--ink3)}
+.alertrow .sev.crit{background:var(--up)} .alertrow .sev.warn{background:var(--warn)} .alertrow .sev.info{background:var(--c2)}
+.alertrow>div{min-width:0}
+.alertrow h4{margin:0; font-size:14px; font-weight:500; display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+.alertrow p{margin:4px 0 0; font-size:13px; color:var(--ink2)}
+.alertrow p.act{color:var(--ink); font-weight:500}
+.alertrow .src,.msg .src{font-size:11.5px; color:var(--ink3); margin-top:6px}
+
+/* בחירה מרובה */
+.msel{position:relative; display:inline-block}
+.mselpop{position:absolute; inset-inline-start:0; top:calc(100% + 6px); width:300px; background:var(--surface);
+  border:1px solid var(--line); border-radius:9px; box-shadow:var(--shadow); z-index:30; padding:10px;
+  max-height:350px; display:flex; flex-direction:column; gap:8px}
+.msellist{overflow:auto; display:flex; flex-direction:column; gap:1px}
+.msellist label{display:flex; gap:8px; align-items:center; padding:4px 6px; font-size:13px; border-radius:5px; cursor:pointer}
+.msellist label:hover{background:var(--surface2)}
+.msellist label span{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.msellist label i{font-size:11.5px; color:var(--ink3); font-style:normal}
+
+/* מגירת הפירוט של SPEND רחבה יותר — יש בה טבלאות וגרפים */
+.drawer.spend-drawer{width:min(900px,100%)}
+.drawer.spend-drawer .tiles{grid-template-columns:repeat(auto-fill,minmax(165px,1fr))}
+.drawer.spend-drawer .tile{min-height:0; padding:12px 13px}
+.drawer.spend-drawer .tile b{font-size:21px}
+
+/* יועץ ה-AI */
+.chatlog{display:flex; flex-direction:column; gap:12px; max-height:52vh; overflow:auto; padding-inline-end:4px}
+.msg{max-width:92%; padding:11px 14px; border-radius:12px; font-size:13.5px; line-height:1.6; word-break:break-word}
+.msg.u{align-self:flex-start; background:var(--accent); color:#fff; border-end-end-radius:3px}
+.msg.a{align-self:flex-end; background:var(--surface2); border:1px solid var(--line); border-end-start-radius:3px}
+.msg p{margin:4px 0} .msg h4{margin:8px 0 4px; font-size:14px}
+.msg ul{margin:6px 0; padding-inline-start:18px}
+.msg table{font-size:12.5px; margin-top:8px}
+.qsug{display:flex; gap:6px; flex-wrap:wrap; margin-top:12px}
+.qsug .btn{text-align:start}
+
+/* הודעה צפה */
+.toast{position:fixed; bottom:22px; left:50%; transform:translateX(-50%) translateY(10px); z-index:60;
+  background:var(--ink); color:var(--page); padding:10px 20px; border-radius:999px; font-size:13.5px;
+  box-shadow:var(--shadow); opacity:0; pointer-events:none; transition:opacity .18s,transform .18s}
+.toast.on{opacity:1; transform:translateX(-50%) translateY(0)}
+
+@media(max-width:900px){
+  .drawer.spend-drawer{width:100%}
+  .spend-filters .bar{padding:10px 12px}
+  .mselpop{width:min(300px,calc(100vw - 40px))}
+}
+
+/* פריטי grid מקבלים min-width:auto כברירת מחדל, ולכן טבלה רחבה מרחיבה את
+   העמודה במקום לגלול בתוכה. בלי זה כל המסך נדחף הצדה ברוחב טלפון. */
+.spend-body .grid2>*,.spend-body .grid3>*,.spend-body .panel,.spend-body .pb,.spend-filters{min-width:0}
+.spend-body .tblwrap,.drawer .tblwrap{max-width:100%}
+.spend-body .inline-form{max-width:100%}
+.spend-body .inline-form select,.spend-body .inline-form input{max-width:100%}
+.spend-body .bars,.spend-body .brow{min-width:0}
+.spend-body .tiles{min-width:0}
+@media(max-width:620px){
+  .spend-body .tiles{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+  .spend-head h2{font-size:18px}
+}

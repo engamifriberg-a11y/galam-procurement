@@ -13,8 +13,8 @@ const pass = m => console.log('✓ ' + m);
 /* ---------- DOM מינימלי ---------- */
 class El {
   constructor(id) { this.id = id; this._html = ''; this.dataset = {}; this.style = {}; this.textContent = ''; this.disabled = false; }
-  set innerHTML(v) { this._html = String(v); log.push([this.id, this._html]); }
-  get innerHTML() { return this._html; }
+  set innerHTML(v) { this._html = String(v); this._kids = []; log.push([this.id, this._html]); }
+  get innerHTML() { return this._html + this._childHtml + (this._kids && this._kids.length ? '' : (this.textContent || '')); }
   // מחזיר אלמנט רשום אם ה-HTML שנכתב אכן מכיל אותו, כדי לדמות חיפוש בתוך תת-עץ
   querySelector(s) {
     if (s?.startsWith('#') && this._html.includes(`id="${s.slice(1)}"`)) {
@@ -27,9 +27,30 @@ class El {
     return null;
   }
   querySelectorAll() { return []; }
-  setAttribute() {} getAttribute() { return null; }
+  setAttribute(k, v) { if (k === 'class') this.className = v; this._attrs ||= {}; this._attrs[k] = v; }
+  getAttribute(k) { return (this._attrs || {})[k] ?? null; }
   addEventListener() {} closest() { return null; }
-  get classList() { return { add() {}, remove() {}, contains: () => false }; }
+  get classList() { const self = this; return { add(c) { self.className = ((self.className || '') + ' ' + c).trim(); }, remove() {}, contains: () => false, toggle: () => false }; }
+  // לשונית SPEND בונה צומתי DOM במקום מחרוזות HTML. בלי התמיכה הזאת
+  // הבדיקה לא הייתה מגיעה בכלל לתוכן שלה.
+  appendChild(c) { this._kids ||= []; this._kids.push(c); return c; }
+  // ה-HTML מורכב מהילדים בזמן הקריאה ולא בזמן ההוספה, אחרת כל מה שנוסף
+  // לצומת אחרי שצורף להורה שלו לא היה נספר בבדיקת המחלקות.
+  get outerHTML() {
+    const cls = this.className ? ` class="${this.className}"` : '';
+    return `<div${cls}>${this.innerHTML}</div>`;
+  }
+  get _childHtml() { return (this._kids || []).map(k => (k && k.outerHTML) || '').join(''); }
+  append(...cs) { cs.forEach(c => { if (c && typeof c === 'object') this.appendChild(c); }); }
+  prepend(...cs) { this.append(...cs); }
+  remove() {}
+  insertBefore(c) { return this.appendChild(c); }
+  scrollIntoView() {}
+  focus() {}
+  get firstChild() { return (this._kids || [])[0] || null; }
+  get lastChild() { const k = this._kids || []; return k[k.length - 1] || null; }
+  get isConnected() { return true; }
+  getBoundingClientRect() { return { width: 900, height: 300, top: 0, left: 0, right: 900, bottom: 300 }; }
 }
 const els = new Map([['#view', new El('#view')], ['#tabs', new El('#tabs')], ['#stamp', new El('#stamp')],
   ['#theme', new El('#theme')], ['#refresh', new El('#refresh')], ['#subview', new El('#subview')]]);
@@ -47,9 +68,13 @@ globalThis.document = {
   querySelectorAll: () => [],
   addEventListener() {},
   documentElement: new El('html'),
+  body: new El('body'),
+  head: new El('head'),
+  getElementById: id => findEl('#' + id),
   createElement: () => new El('tmp')
 };
-globalThis.window = { addEventListener() {}, scrollTo() {} };
+globalThis.window = { addEventListener() {}, removeEventListener() {}, scrollTo() {}, setTimeout, clearTimeout };
+globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
 globalThis.location = { hash: '', href: 'http://localhost/' };
 globalThis.getComputedStyle = () => ({ getPropertyValue: () => '#EDF1F2' });
 
@@ -71,8 +96,63 @@ const API_MARKET = {
 let TONS_OVERRIDE = {};
 let SKU_OVERRIDE = {};
 
+/* מערך רכש מינימלי בפורמט ש-/api/spend מחזיר, כדי להריץ את לשונית SPEND
+   בלי מסד נתונים. מספיק רחב כדי שכל 21 המסכים ימצאו מה להציג. */
+const SPEND_FIXTURE = (() => {
+  const dims = {
+    sup: ['200-000001', '200-000002', '200-000003'],
+    supInfo: [
+      { name: 'ספק אלפא', typeCode: '30', typeDesc: 'רכש טכני', status: 'פעיל', terms: 'שוטף + 60', opened: 4000, city: 'חיפה', country: 'Israel', classDesc: 'ציוד' },
+      { name: 'ספק בטא', typeCode: '61', typeDesc: 'כימיקלים ושרפים', status: 'פעיל', terms: 'מיידי', opened: 4100, city: 'אשדוד', country: 'Israel', classDesc: 'כימיה' },
+      { name: 'ספק גמא', typeCode: '11', typeDesc: 'הובלות יבשתיות', status: 'פעיל', terms: 'שוטף + 30', opened: 4200, city: 'לוד', country: 'Israel', classDesc: 'הובלה' }
+    ],
+    item: ['IT-100', 'IT-200', 'IT-300'],
+    itemDesc: ['חומצה גופרתית', 'משטח עץ', 'הובלת סחורה'],
+    po: [], buyer: ['DANA', 'BARM'], status: ['סגורה', 'אושרה', 'טיוטא'],
+    potype: ['מחסן טכני', 'תפעול'], unit: ['KG', 'EA', 'EAC'], cur: ['ILS', 'USD']
+  };
+  const R = { s: [], i: [], p: [], b: [], st: [], pt: [], u: [], c: [], ln: [], d: [], dd: [], q: [], up: [], a: [], oq: [] };
+  let n = 0;
+  for (let y = 0; y < 2; y++) for (let mo = 0; mo < 12; mo++) for (let v = 0; v < 3; v++) {
+    const po = 'PO' + String(1000 + n).padStart(5, '0');
+    dims.po.push(po);
+    const day = Math.round((Date.UTC(2025 + y, mo, 10) - Date.UTC(2014, 0, 1)) / 864e5);
+    const qty = 10 + v * 5 + mo;
+    const unitPrice = v === 0 ? 4 + y * 0.6 : v === 1 ? 38 + y * 3 : 1200 + y * 90;
+    R.s.push(v); R.i.push(v); R.p.push(n); R.b.push(v % 2); R.st.push(mo === 11 && v === 2 ? 1 : 0);
+    R.pt.push(v % 2); R.u.push(v); R.c.push(v === 2 ? 1 : 0); R.ln.push(1);
+    R.d.push(day); R.dd.push(day + 30); R.q.push(qty); R.up.push(unitPrice);
+    R.a.push(+(qty * unitPrice * (v === 2 ? 3.6 : 1)).toFixed(2));
+    R.oq.push(mo === 11 && v === 2 ? qty / 2 : 0);
+    n++;
+  }
+  // ספק שני לאותו מק"ט ויחידה, כדי שיהיה פער מחיר אמיתי להשוות עליו
+  for (let mo = 0; mo < 6; mo++) {
+    const po = 'PO-ALT' + mo;
+    dims.po.push(po);
+    const day = Math.round((Date.UTC(2026, mo, 15) - Date.UTC(2014, 0, 1)) / 864e5);
+    R.s.push(1); R.i.push(0); R.p.push(dims.po.length - 1); R.b.push(0); R.st.push(0);
+    R.pt.push(0); R.u.push(0); R.c.push(0); R.ln.push(1);
+    R.d.push(day); R.dd.push(day + 20); R.q.push(40); R.up.push(5.4); R.a.push(216); R.oq.push(0);
+  }
+  return {
+    meta: {
+      epoch: '2014-01-01', rows: R.s.length, builtAt: '2026-10-08T00:00:00',
+      sourceFile: 'בדיקה', minDate: Math.min(...R.d), maxDate: Math.max(...R.d),
+      amountNote: '', openNote: ''
+    },
+    dims, rows: R
+  };
+})();
+
 globalThis.fetch = async (url) => {
   const u = String(url);
+  if (u.startsWith('/api/spend')) {
+    const body = u.includes('track=1') ? { opps: {}, targets: {} }
+      : u.includes('ai=1') ? { answer: 'תשובת בדיקה.', provider: 'test', model: 'stub' }
+      : SPEND_FIXTURE;
+    return { ok: true, status: 200, json: async () => body };
+  }
   const body = u.startsWith('/api/market') ? API_MARKET
     : u.startsWith('/api/prices?what=tons') ? TONS_OVERRIDE
     : u.startsWith('/api/prices?what=sku') ? SKU_OVERRIDE
@@ -300,6 +380,118 @@ else {
         h.includes('data-filter="soon"') ? pass('מסנני ההתראות') : fail('מסנני ההתראות חסרים');
       }
     } catch (e) { fail(`חוזים · ${s2}: ${e.message}`); }
+  }
+}
+
+/* ---------- לשונית SPEND ---------- */
+{
+  const sp = tabs().find(t => t.id === 'spend');
+  if (!sp) fail('לשונית SPEND לא נרשמה');
+  else {
+    const SCREENS = ['exec', 'suppliers', 'items', 'abc', 'price', 'yoy', 'categories', 'save', 'dep',
+      'orders', 'open', 'demand', 'compare', 'inflation', 'efficiency', 'forecast', 'alerts',
+      'advisor', 'centre', 'quality', 'load'];
+    let rendered = 0;
+    for (const id of SCREENS) {
+      const v = new El('#view');
+      try {
+        await sp.render(v, { sub: id, go: () => {} });
+        await new Promise(r => setTimeout(r, 30));
+        const h = v.innerHTML;
+        if (h.length < 300) fail(`SPEND · ${id}: כמעט ריק (${h.length} תווים)`);
+        else if (/שגיאה בהצגת המסך/.test(h)) fail(`SPEND · ${id}: המסך זרק שגיאה`);
+        else { rendered++; pass(`SPEND · ${id} (${h.length.toLocaleString()} תווים)`); }
+      } catch (e) { fail(`SPEND · ${id}: ${e.message}`); }
+    }
+    rendered === SCREENS.length ? pass(`כל ${SCREENS.length} מסכי SPEND נבנו`) : fail('לא כל מסכי SPEND נבנו');
+
+    // המנוע עצמו: אותם מספרים שהמסכים מציגים, מול חישוב ישיר
+    const m = await import('../assets/js/tabs/spend/model.js');
+    const an = await import('../assets/js/tabs/spend/analytics.js');
+    m.resetF(); m.invalidate();
+    const idx = m.IDX();
+    const tot = m.sum(idx, m.M.a);
+    let raw = 0;
+    for (let k = 0; k < m.M.N; k++) if (m.M.st[k] !== m.M.statDraft) raw += m.M.a[k];
+    Math.abs(tot - raw) < 0.01 ? pass('סך ההוצאה מתיישב עם סכום השורות') : fail(`סך ההוצאה ${tot} מול ${raw}`);
+
+    // יתרה לאספקה היא כמות, והשווי הוא החלק היחסי מאותה שורה
+    const op = m.openIdx(idx);
+    let want = 0;
+    for (let j = 0; j < op.length; j++) { const k = op[j]; want += m.M.a[k] * (m.M.oq[k] / m.M.q[k]); }
+    Math.abs(m.sum(op, m.M.openILS) - want) < 0.01
+      ? pass('שווי ההתחייבות הפתוחה מחושב כחלק יחסי מהשורה')
+      : fail('שווי ההתחייבות הפתוחה שגוי');
+
+    // מחיר ממוצע משוקלל, ולא ממוצע פשוט של מחירי השורות
+    const w = m.wapOf(idx, 0);
+    if (!w) fail('לא חושב מחיר משוקלל');
+    else {
+      let q = 0, a = 0;
+      for (let j = 0; j < idx.length; j++) {
+        const k = idx[j];
+        if (m.M.i[k] !== 0 || m.M.u[k] !== m.M.itemUnit[0]) continue;
+        q += m.M.q[k]; a += m.M.a[k];
+      }
+      Math.abs(w.wap - a / q) < 1e-9 ? pass('מחיר משוקלל = סכום חלקי כמות') : fail('מחיר משוקלל שגוי');
+    }
+
+    // שער ההשוואה: קוד מרכז-עלות לא נכנס לפערי המחיר
+    const gaps = an.priceGaps(idx);
+    gaps.every(g => !m.M.itemCatchAll[g.it])
+      ? pass('קודי מרכז-עלות מוחרגים מפערי המחיר')
+      : fail('קוד מרכז-עלות חלחל לפערי המחיר');
+    gaps.length ? pass(`זוהו ${gaps.length} פערי מחיר בני-השוואה`) : fail('לא זוהה אף פער מחיר בנתוני הבדיקה');
+
+    // חיסכון מחושב לעולם לא שלילי, ותמיד מופרד מאומדן
+    const { out } = an.buildOpportunities(idx, {});
+    out.every(o => o.save >= 0) ? pass('אין הזדמנות עם חיסכון שלילי') : fail('הזדמנות עם חיסכון שלילי');
+    out.every(o => o.basis === 'מחושב' || o.basis === 'אומדן') && out.every(o => o.assume)
+      ? pass('כל הזדמנות מסומנת כמחושבת או כאומדן ונושאת את הנחות החישוב')
+      : fail('הזדמנות בלי בסיס או בלי הנחות חישוב');
+
+    // חלון ארוך משנה חופף לעצמו — ההשוואה חייבת להיחסם
+    m.clearPeriod(); m.invalidate();
+    m.yoyUsable() === false ? pass('השוואה לשנה קודמת נחסמת בטווח ארוך משנה') : fail('השוואה חופפת לא נחסמה');
+    m.F.years.add(m.M.years[m.M.years.length - 1]); m.invalidate();
+    m.yoyUsable() === true ? pass('השוואה לשנה קודמת פעילה בבחירת שנה אחת') : fail('השוואה לשנה אחת נחסמה בטעות');
+
+    // מיפוי העמודות: סדר המועמדים גובר על סדר העמודות בקובץ
+    const sys = await import('../assets/js/tabs/spend/views-system.js');
+    {
+      const hdr = ['לטיפול', "מס' ספק", 'שם ספק', 'סוג ספק', 'תאור סוג ספק', 'תאור סוג הזמנת רכש',
+        'הזמנת רכש', 'תאריך ההזמנה', 'סטטוס הזמנה', 'שורה בהזמנה', "מק'ט", 'תאור מוצר',
+        'כמות', "יח'", 'מחיר ליחידה', 'מטבע ההזמנה', 'סכום (ILS)', 'ת. אספקה', 'יתרה לאספקה'];
+      const mp = sys.autoMap(hdr);
+      hdr[mp.std] === 'תאור סוג ספק'
+        ? pass('מיפוי אוטומטי בוחר את תאור סוג הספק ולא את הקוד')
+        : fail(`מיפוי סוג ספק הצביע על "${hdr[mp.std]}"`);
+      ['sid', 'po', 'odate', 'item', 'qty', 'cprice', 'amt'].every(k => mp[k] != null)
+        ? pass('כל שדות החובה ממופים אוטומטית מכותרות הקובץ')
+        : fail('שדה חובה לא מופה אוטומטית');
+
+      // שורה כפולה מוסרת, שורה פגומה נפסלת עם סיבה
+      const row = (po, ln, item, d) => {
+        const r = new Array(hdr.length).fill('');
+        r[mp.sid] = '200-1'; r[mp.sname] = 'ספק'; r[mp.po] = po; r[mp.line] = ln;
+        r[mp.item] = item; r[mp.odate] = d; r[mp.qty] = 2; r[mp.cprice] = 5; r[mp.amt] = 10;
+        return r;
+      };
+      const bad = new Array(hdr.length).fill('');
+      bad[mp.sid] = '200-1'; bad[mp.po] = 'P9'; bad[mp.item] = 'X'; bad[mp.odate] = 'לא תאריך';
+      const ing = sys.ingest([row('P1', 1, 'A', '2026-01-05'), row('P1', 1, 'A', '2026-01-05'),
+        row('P2', 1, 'A', '2026-02-05'), bad], mp, 'בדיקה.xlsx');
+      ing.ok && ing.payload.meta.rows === 2 ? pass('קליטה: שתי שורות תקינות') : fail(`קליטה החזירה ${ing.payload?.meta?.rows} שורות`);
+      ing.dup === 1 ? pass('שורה כפולה הוסרה (הזמנה+שורה+מק״ט)') : fail('כפילות לא הוסרה');
+      ing.errs.length === 1 && /תאריך/.test(ing.errs[0].why) ? pass('שורה עם תאריך פגום נפסלה עם סיבה') : fail('שורה פגומה לא נפסלה כראוי');
+    }
+
+    // הסינון באמת מצמצם
+    const all = m.IDX().length;
+    m.F.sup.add(0); m.invalidate();
+    const one = m.IDX().length;
+    one > 0 && one < all ? pass('מנוע הסינון מצמצם את קבוצת השורות') : fail('הסינון לא השפיע');
+    m.resetF(); m.invalidate();
   }
 }
 
