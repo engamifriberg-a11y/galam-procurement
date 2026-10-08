@@ -22,6 +22,22 @@ export async function loadTons() {
   return r.ok && r.body && !r.body.error ? r.body : {};
 }
 
+// המק״טים שהוזנו ידנית. בקובץ המקורי יש מק״ט לשלושה פריטים בלבד.
+export async function loadSkus() {
+  const r = await get('/api/prices?what=sku');
+  return r.ok && r.body && !r.body.error ? r.body : {};
+}
+
+/* המק״ט נשמר בשדה נפרד ואינו דורס את item, כי item הוא מפתח הרשומה של
+   המחיר והכמות. דריסה שלו הייתה מנתקת את הפריט מהנתונים שכבר הוזנו. */
+export function applySkus(items, overrides) {
+  if (!overrides || !Object.keys(overrides).length) return items;
+  return items.map(it => {
+    const v = String(overrides[it.item || String(it.n)] ?? '').trim();
+    return v ? { ...it, sku: v, skuManual: true } : it;
+  });
+}
+
 /* הזנה ידנית דורסת את הכמות שבקובץ. אותה לוגיקה בדיוק רצה בשרת
    (api/_lib/analysis.js), כדי שהמסך וה-AI יראו את אותו מספר. */
 export function applyTons(items, overrides) {

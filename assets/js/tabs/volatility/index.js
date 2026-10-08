@@ -1,7 +1,7 @@
 // לשונית: תנודתיות חומרי גלם ומדדי מאקרו.
 // מבנה: תת-לשוניות עצמאיות, כל אחת מקבלת את אותו מטען נתונים.
 import { registerTab, esc, loading } from '../../core/base.js';
-import { loadMarket, loadChemicals, loadPrices, loadTons, applyTons, indexSeries } from './data.js';
+import { loadMarket, loadChemicals, loadPrices, loadTons, loadSkus, applyTons, applySkus, indexSeries } from './data.js';
 import { groupView, wireInputs } from './market-view.js';
 import { chemicalsView, wireChemicals } from './chemicals-view.js';
 import { riskView } from './risk-view.js';
@@ -50,9 +50,9 @@ registerTab({
     }
 
     if (active === 'chem') {
-      const [chem, prices, tons] = await Promise.all([loadChemicals(), loadPrices(), loadTons()]);
-      // הכמויות שהוזנו ידנית דורסות את הקובץ לפני כל חישוב
-      chem.items = applyTons(chem.items, tons);
+      const [chem, prices, tons, skus] = await Promise.all([loadChemicals(), loadPrices(), loadTons(), loadSkus()]);
+      // מה שהוזן ידנית דורס את הקובץ לפני כל חישוב ולפני התצוגה
+      chem.items = applySkus(applyTons(chem.items, tons), skus);
       host.innerHTML = chemicalsView(market, chem, prices, byId, state);
       wireChemicals(host, state, rerender);
       return;

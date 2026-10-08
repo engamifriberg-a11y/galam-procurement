@@ -69,11 +69,13 @@ const API_MARKET = {
 };
 // כמויות שהוזנו ידנית, נדרס בבדיקה עצמה
 let TONS_OVERRIDE = {};
+let SKU_OVERRIDE = {};
 
 globalThis.fetch = async (url) => {
   const u = String(url);
   const body = u.startsWith('/api/market') ? API_MARKET
     : u.startsWith('/api/prices?what=tons') ? TONS_OVERRIDE
+    : u.startsWith('/api/prices?what=sku') ? SKU_OVERRIDE
     : u.startsWith('/api/prices') ? {}
     : u.includes('task=brief') ? { group: 'x', he: 'x', text: 'קריאת בדיקה.', basedOn: 3, missing: 1, at: new Date().toISOString(), provider: 'nvidia' }
     : u.includes('task=pitch') ? { key: '1', item: 'x', rec: 'ask', text: 'טיעון בדיקה.', at: new Date().toISOString() }
@@ -193,6 +195,17 @@ els.get('#subview').innerHTML.includes('data-chemsort')
   html.includes('data-f="tons"') ? pass('שדה הזנת כמות בכל שורה') : fail('שדה הזנת הכמות חסר');
   html.includes('data-tons=') && html.includes('class="celledit"')
     ? pass('עמודת הטונות לחיצה לעריכה') : fail('אי אפשר לערוך את עמודת הטונות');
+
+  // מק״ט: עמודה ראשונה, לחיצה לעריכה, וריק כשאין
+  const { applySkus } = await import(new URL('../assets/js/tabs/volatility/data.js', import.meta.url));
+  // כמו בקובץ האמיתי: לרוב הפריטים אין מק״ט, ולאחד הזנו אחד ידנית
+  const noSku = chem.items.map(i => ({ ...i, item: '' }));
+  const sk = chemicalsView({}, { items: applySkus(noSku, { 'גדול': '5091506' }) }, {}, new Map(), { win: 'd90', sort: 'tons', dir: -1 });
+  sk.indexOf('<th>מק״ט</th>') >= 0 && sk.indexOf('<th>מק״ט</th>') < sk.indexOf('<th>כימיקל</th>')
+    ? pass('מק״ט הוא העמודה הימנית ביותר') : fail('המק״ט אינו בעמודה הימנית');
+  sk.includes('data-sku=') ? pass('המק״ט ניתן לעריכה בלחיצה') : fail('אי אפשר לערוך מק״ט');
+  sk.includes('5091506') ? pass('מק״ט שהוזן מוצג') : fail('המק״ט שהוזן לא מוצג');
+  sk.includes('הזן מק״ט') ? pass('פריט בלי מק״ט נשאר ריק להזנה') : fail('פריט בלי מק״ט אינו מזמין הזנה');
   html.includes('ידני') && html.includes('מהקובץ')
     ? pass('מסומן מה הוזן ידנית ומה מהקובץ') : fail('חסר סימון מקור הכמות');
   applyTons(chem.items, {})[0].tons === 5 ? pass('בלי הזנה, הכמות נשארת מהקובץ') : fail('הכמות מהקובץ נדרסה לשווא');

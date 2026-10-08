@@ -41,7 +41,7 @@ export function chemicalsView(market, chem, prices, byId, state) {
   <div class="panel">
     <div class="ph">
       <h2>המלצות קנייה</h2>
-      <p>${asks.length} פריטים לפנייה להוזלה · ${locks.length} לנעילת מחיר · לחיצה על מספר בעמודת טון/שנה עורכת אותו</p>
+      <p>${asks.length} פריטים לפנייה להוזלה · ${locks.length} לנעילת מחיר · לחיצה על מק״ט או על כמות בטבלה פותחת אותם לעריכה</p>
       <span class="right">מיון:
         <select class="inp" data-chemsort style="width:186px;text-align:start">
           ${SORTS.map(([v, he]) => `<option value="${v}" ${v === `${sort}:${dir}` ? 'selected' : ''}>${he}</option>`).join('')}
@@ -52,6 +52,7 @@ export function chemicalsView(market, chem, prices, byId, state) {
     </div>
     <div class="tblwrap"><table>
       <thead><tr>
+        <th>מק״ט</th>
         <th>כימיקל</th>
         <th class="num" data-sort="tons" title="לחיצה מחליפה בין מהגבוה לנמוך ולהפך">טון/שנה ${arrow(sort, dir)}</th>
         <th>ספקים</th><th>הובלה</th>
@@ -99,9 +100,13 @@ const arrow = (sort, dir) => `<span class="ar">${sort === 'tons' ? (dir > 0 ? '�
 
 function rowHtml({ item, exp, paid, rec, fr }) {
   const paidChg = (paid && Number.isFinite(paid.prev) && paid.prev > 0) ? (paid.price - paid.prev) / paid.prev * 100 : null;
+  const key = esc(item.item || String(item.n));
+  const sku = item.sku || item.item || '';
   return `<tr>
-    <td>${esc(item.he || item.en)}<span class="sub">${esc(item.en)}${item.item ? ' · ' + esc(item.item) : ''} · ${esc(item.origin)}</span></td>
-    <td class="num"><span class="celledit" data-tons="${esc(item.item || String(item.n))}" role="button" tabindex="0"
+    <td><span class="celledit mono" data-sku="${key}" role="button" tabindex="0"
+        title="לחיצה להזנת מק״ט">${sku ? esc(sku) : '<span class="sub">הזן מק״ט</span>'}</span></td>
+    <td>${esc(item.he || item.en)}<span class="sub">${esc(item.en)} · ${esc(item.origin)}</span></td>
+    <td class="num"><span class="celledit" data-tons="${key}" role="button" tabindex="0"
         title="${item.tonsManual ? 'כמות שהוזנה ידנית · ' : ''}לחיצה לעריכת הכמות">${nf(item.tons, item.tons < 10 ? 2 : 0)}</span>${item.tonsManual ? '<span class="sub">ידני</span>' : ''}</td>
     <td class="num">${item.sup}</td>
     <td class="sub">${esc(fr ? fr.he : '—')}</td>
@@ -111,19 +116,29 @@ function rowHtml({ item, exp, paid, rec, fr }) {
     <td class="num ${rec.gap == null ? 'flat' : rec.gap > 0 ? 'up' : 'down'}">${rec.gap == null ? '—' : (rec.gap > 0 ? '+' : '') + rec.gap.toFixed(1)}</td>
     <td class="num">${rec.lev}</td>
     <td><span class="pill ${rec.cls}">${esc(rec.he)}</span><span class="sub">${esc(rec.why)}</span></td>
-    <td style="min-width:210px"><button class="btn sm" data-pitch="${esc(item.item || String(item.n))}">נסח טיעון</button><span class="sub" data-pitch-out></span></td>
+    <td style="min-width:210px"><button class="btn sm" data-pitch="${key}">נסח טיעון</button><span class="sub" data-pitch-out></span></td>
   </tr>`;
 }
 
-/* עריכת כמות במקום, בתוך טבלת ההמלצות.
+/* עריכת תא במקום, בתוך טבלת ההמלצות.
    Enter או יציאה מהשדה שומרים, Escape מבטל, שדה ריק מחזיר לערך שבקובץ. */
-function editTons(span, rerender) {
-  const key = span.dataset.tons;
+function editCell(span, what, rerender) {
+  const numeric = what === 'tons';
+  const key = span.dataset[what];
   const inp = document.createElement('input');
-  inp.type = 'number'; inp.className = 'inp'; inp.min = '0'; inp.step = 'any';
-  inp.style.width = '92px'; inp.style.textAlign = 'end';
-  inp.setAttribute('aria-label', 'כמות שנתית בטונות');
-  inp.value = span.textContent.replace(/[^\d.]/g, '');
+  inp.className = 'inp';
+  if (numeric) {
+    inp.type = 'number'; inp.min = '0'; inp.step = 'any';
+    inp.style.width = '92px'; inp.style.textAlign = 'end';
+    inp.setAttribute('aria-label', 'כמות שנתית בטונות');
+    inp.value = span.textContent.replace(/[^\d.]/g, '');
+  } else {
+    inp.type = 'text'; inp.dir = 'ltr';
+    inp.style.width = '104px'; inp.style.textAlign = 'start';
+    inp.setAttribute('aria-label', 'מק״ט הפריט');
+    inp.placeholder = 'מק״ט';
+    inp.value = span.textContent.trim() === 'הזן מק״ט' ? '' : span.textContent.trim();
+  }
   span.replaceWith(inp);
   inp.focus(); inp.select();
 
@@ -134,7 +149,8 @@ function editTons(span, rerender) {
     if (!save) return rerender();
     const txt = inp.value.trim();
     inp.disabled = true;
-    const r = await send('/api/prices?what=tons', 'PUT', { [key]: txt === '' ? null : Number(txt) });
+    const value = txt === '' ? null : (numeric ? Number(txt) : txt);
+    const r = await send(`/api/prices?what=${what}`, 'PUT', { [key]: value });
     if (!r.ok) { inp.disabled = false; done = false; inp.focus(); return; }
     clearCache();
     rerender();
@@ -152,8 +168,9 @@ function breakdown(exp) {
 
 function priceRow(item, paid) {
   const k = item.item || String(item.n);
+  const sku = item.sku || item.item || '';
   return `<tr data-key="${esc(k)}">
-    <td>${esc(item.he || item.en)}<span class="sub">${esc(item.en)}</span></td>
+    <td>${esc(item.he || item.en)}<span class="sub">${esc(item.en)}${sku ? ' · מק״ט ' + esc(sku) : ''}</span></td>
     <td><input class="inp" type="number" step="any" min="0" data-f="tons" value="${item.tons ?? ''}"
         placeholder="0" style="width:104px" aria-label="כמות שנתית בטונות"><span class="sub">${item.tonsManual ? 'ידני' : 'מהקובץ'}</span></td>
     <td><input class="inp" type="number" step="any" data-f="price" value="${paid?.price ?? ''}" placeholder="0"></td>
@@ -184,12 +201,14 @@ export function wireChemicals(root, state, rerender) {
     rerender();
   });
 
-  // עריכת הכמות ישירות בעמודה: לחיצה על המספר הופכת אותו לשדה
-  root.querySelectorAll('[data-tons]').forEach(el => {
-    const open = () => editTons(el, rerender);
-    el.onclick = open;
-    el.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } };
-  });
+  // עריכה ישירות בטבלה: לחיצה על מק״ט או על כמות הופכת את התא לשדה
+  for (const what of ['tons', 'sku']) {
+    root.querySelectorAll(`[data-${what}]`).forEach(el => {
+      const open = () => editCell(el, what, rerender);
+      el.onclick = open;
+      el.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } };
+    });
+  }
 
   // נימוק לשיחה מול הספק. המודל מקבל את המספרים של השורה ומנסח מהם בלבד.
   root.querySelectorAll('[data-pitch]').forEach(btn => {
