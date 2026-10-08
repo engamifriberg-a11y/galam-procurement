@@ -223,10 +223,12 @@ registerTab({
     closeDrawer();
     closePop();
 
+    // כשאין עדיין נתונים, מסך הטעינה חייב להיות נגיש — אחרת אין דרך להעלות
+    // את הקובץ הראשון, והלשונית נעולה על מסך ריק שמפנה לעצמו.
     if (!LOADED) {
       view.innerHTML = loading('טוען את מחסן נתוני הרכש');
       const ok = await loadData();
-      if (!ok) {
+      if (!ok && !(LOAD_ERR === 'empty' && sub === 'load')) {
         view.innerHTML = LOAD_ERR === 'empty'
           ? empty('לא נטענו עדיין נתוני רכש', 'העלה את קובץ הזמנות הרכש במסך טעינת הנתונים כדי להפעיל את הלשונית.')
           : empty('טעינת נתוני הרכש נכשלה', LOAD_ERR || '');
@@ -236,7 +238,7 @@ registerTab({
         }
         return;
       }
-      loadTrack();
+      if (ok) loadTrack();
     }
 
     const screen = SCREENS.find(s => s.id === sub) || SCREENS[0];
@@ -248,7 +250,17 @@ registerTab({
       redraw: () => render2(),
       state: (k, init) => (STATE[k] ||= init),
       track: TRACK,
-      activeChips
+      activeChips,
+      hasData: () => LOADED,
+      // נקרא אחרי קליטה מוצלחת: המודל כבר נבנה בדפדפן, אין טעם למשוך שוב מהשרת
+      markLoaded: () => {
+        LOADED = true;
+        LOAD_ERR = null;
+        resetF();
+        F.years.add(M.years[M.years.length - 1]);
+        invalidate();
+        loadTrack();
+      }
     };
 
     view.innerHTML = '';
@@ -272,8 +284,13 @@ registerTab({
     function render2() {
       disposeCharts();
       bar.innerHTML = '';
-      if (screen.id !== 'load') bar.appendChild(filterBar(ctx));
       body.innerHTML = '';
+      if (!LOADED) {                       // מסך הטעינה לפני שיש מודל כלשהו
+        try { screen.render(body, new Uint32Array(0), ctx); }
+        catch (e) { console.error(e); body.innerHTML = empty('שגיאה בהצגת המסך', String(e?.message || e)); }
+        return;
+      }
+      if (screen.id !== 'load') bar.appendChild(filterBar(ctx));
       const idx = IDX();
       if (!idx.length && screen.id !== 'load' && screen.id !== 'quality') {
         body.innerHTML = empty('אין שורות שעונות על הסינון', 'נקה חלק מהפילטרים בשורת הסינון שמעל.');

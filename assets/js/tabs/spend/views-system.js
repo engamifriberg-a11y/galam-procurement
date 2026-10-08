@@ -453,15 +453,20 @@ function loadXlsx() {
 }
 
 export function viewLoad(root, idx, ctx) {
+  const loaded = ctx.hasData ? ctx.hasData() : !!M.N;
   const cur = panel(root, 'הנתונים שנטענים כרגע');
-  kv(cur, [
-    ['מקור', esc(M.meta.sourceFile || '—')],
-    ['שורות', num(M.N)],
-    ['תקופה', `${dstr(M.minD)} – ${dstr(M.maxD)}`],
-    ['הזמנות / ספקים / מק״טים', `${num(M.dims.po.length)} / ${num(M.dims.sup.length)} / ${num(M.dims.item.length)}`],
-    ['סך הוצאה', money((() => { let s = 0; for (let k = 0; k < M.N; k++) s += M.a[k]; return s; })())],
-    ['נקלט לשרת', esc(String(M.meta.builtAt || '').replace('T', ' '))]
-  ]);
+  if (!loaded) {
+    cur.appendChild(EL('p', { class: 'banner', text: 'עדיין לא נטענו נתוני רכש. גרור לכאן את קובץ הזמנות הרכש כדי להפעיל את הלשונית — הקובץ נקרא בדפדפן, ורק התוצאה נשמרת בשרת.' }));
+  } else {
+    kv(cur, [
+      ['מקור', esc(M.meta.sourceFile || '—')],
+      ['שורות', num(M.N)],
+      ['תקופה', `${dstr(M.minD)} – ${dstr(M.maxD)}`],
+      ['הזמנות / ספקים / מק״טים', `${num(M.dims.po.length)} / ${num(M.dims.sup.length)} / ${num(M.dims.item.length)}`],
+      ['סך הוצאה', money((() => { let s = 0; for (let k = 0; k < M.N; k++) s += M.a[k]; return s; })())],
+      ['נקלט לשרת', esc(String(M.meta.builtAt || '').replace('T', ' '))]
+    ]);
+  }
 
   const up = panel(root, 'העלאת קובץ חדש', 'XLSX או CSV · הקובץ נקרא בדפדפן, ורק התוצאה הדחוסה נשמרת בשרת');
   const drop = EL('div', { class: 'dropzone' });
@@ -498,8 +503,16 @@ export function viewLoad(root, idx, ctx) {
       const aoa = XLSX.utils.sheet_to_json(wb.Sheets[sel.value], { header: 1, raw: true, blankrows: false, defval: '' });
       step.innerHTML = '';
       if (!aoa.length) { step.innerHTML = '<p class="banner warn">הגיליון ריק.</p>'; return; }
-      let hr = 0;
-      for (let n = 0; n < Math.min(8, aoa.length); n++) if (aoa[n].filter(x => String(x).trim()).length >= aoa[hr].filter(x => String(x).trim()).length) hr = n;
+      // שורת הכותרות היא המלאה ביותר *והטקסטואלית* ביותר, והראשונה מביניהן.
+      // ספירת תאים בלבד עם >= הייתה בוחרת את השורה האחרונה מבין השוות,
+      // כלומר שורת נתונים, בכל גיליון שבו כל העמודות מלאות.
+      let hr = 0, best = -1;
+      for (let n = 0; n < Math.min(8, aoa.length); n++) {
+        const cells = aoa[n].filter(x => String(x ?? '').trim() !== '');
+        const textish = cells.filter(x => typeof x !== 'number' && !/^-?\d+([.,]\d+)?$/.test(String(x).trim())).length;
+        const score = cells.length + textish;
+        if (score > best) { best = score; hr = n; }
+      }
       const headers = aoa[hr].map(x => String(x ?? '').trim());
       const body = aoa.slice(hr + 1).filter(r => r.some(x => String(x).trim() !== ''));
       const map = autoMap(headers);
@@ -527,14 +540,15 @@ export function viewLoad(root, idx, ctx) {
         go.disabled = true; go.textContent = 'קולט…';
         const res = ingest(body, mm, file.name);
         if (!res.ok) { go.disabled = false; go.textContent = 'קלוט ושמור בשרת'; step.appendChild(EL('p', { class: 'banner warn', text: res.msg })); return; }
-        const prevRows = M.N, prevSrc = M.meta.sourceFile;
+        const prevRows = loaded ? M.N : 0;
+        const prevSrc = loaded ? (M.meta.sourceFile || '—') : null;
         const r = await putDataset(res.payload);
         go.disabled = false; go.textContent = 'קלוט ושמור בשרת';
         if (!r.ok) { step.appendChild(EL('p', { class: 'banner warn', text: 'השמירה בשרת נכשלה: ' + esc(r.body?.error || r.status) })); return; }
         clearCache();
         buildModel(res.payload);
-        resetF();
         clearAnalyticsCache();
+        if (ctx.markLoaded) ctx.markLoaded(); else resetF();
         const rep = panel(step, 'דוח קליטה');
         kv(rep, [
           ['קובץ', esc(file.name)], ['שורות שנקלטו', num(M.N)], ['שורות שנדחו', num(res.errs.length)],
@@ -542,7 +556,7 @@ export function viewLoad(root, idx, ctx) {
           ['תאריכים לא תקינים', num(res.badDate)],
           ['התקופה שזוהתה', `${dstr(M.minD)} – ${dstr(M.maxD)}`],
           ['סך ההוצאה', money((() => { let s = 0; for (let k = 0; k < M.N; k++) s += M.a[k]; return s; })())],
-          ['הוחלף', `${esc(prevSrc || '—')} (${num(prevRows)} שורות)`]
+          [prevSrc ? 'הוחלף' : 'מצב קודם', prevSrc ? `${esc(prevSrc)} (${num(prevRows)} שורות)` : 'לא היו נתונים במערכת']
         ]);
         if (res.errs.length) {
           const e = panel(rep, 'שורות שנפסלו והסיבה');

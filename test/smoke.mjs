@@ -486,6 +486,23 @@ else {
       ing.errs.length === 1 && /תאריך/.test(ing.errs[0].why) ? pass('שורה עם תאריך פגום נפסלה עם סיבה') : fail('שורה פגומה לא נפסלה כראוי');
     }
 
+    // שורת הכותרות נבחרת לפי טקסטואליות, לא לפי מיקום
+    {
+      const aoa = [
+        ['מס\' ספק', 'הזמנת רכש', 'תאריך ההזמנה', "מק'ט", 'כמות', 'מחיר ליחידה', 'סכום (ILS)'],
+        ['200-1', 'P1', '2026-01-05', 'A', 2, 5, 10],
+        ['200-1', 'P2', '2026-02-05', 'A', 3, 5, 15]
+      ];
+      let hr = 0, best = -1;
+      for (let n = 0; n < Math.min(8, aoa.length); n++) {
+        const cells = aoa[n].filter(x => String(x ?? '').trim() !== '');
+        const textish = cells.filter(x => typeof x !== 'number' && !/^-?\d+([.,]\d+)?$/.test(String(x).trim())).length;
+        const score = cells.length + textish;
+        if (score > best) { best = score; hr = n; }
+      }
+      hr === 0 ? pass('שורת הכותרות מזוהה גם כשכל שורות הנתונים מלאות') : fail(`זוהתה שורה ${hr} ככותרת`);
+    }
+
     // הסינון באמת מצמצם
     const all = m.IDX().length;
     m.F.sup.add(0); m.invalidate();
