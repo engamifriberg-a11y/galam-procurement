@@ -78,6 +78,8 @@ a.btn{text-decoration:none; display:inline-block}
 .subtab{background:var(--surface); border:1px solid var(--line); border-radius:999px; padding:6px 15px; cursor:pointer; font-size:13.5px; color:var(--ink2)}
 .subtab:hover{border-color:var(--accent)}
 .subtab[aria-selected="true"]{background:var(--accent); border-color:var(--accent); color:#fff}
+.subtab[disabled]{opacity:.42; cursor:not-allowed; border-style:dashed}
+.subtab[disabled]:hover{border-color:var(--line)}
 
 main{padding:4px 0 56px; min-height:60vh}
 .panel{background:var(--surface); border:1px solid var(--line); border-radius:10px; box-shadow:var(--shadow)}

@@ -152,14 +152,24 @@ registerTab({
 
     view.innerHTML = '';
     const nav = EL('nav', { class: 'subtabs', role: 'tablist' });
-    SCREENS.forEach(s => nav.appendChild(EL('button', {
-      class: 'subtab', role: 'tab', 'aria-selected': String(s.id === screen.id),
-      text: s.he, onclick: () => go('spend', s.id)
-    })));
+    SCREENS.forEach(s => {
+      // בלי נתונים אין מה להציג בשאר המסכים, והם מסומנים כלא זמינים.
+      // כך ברור שמדובר בטעינה אחת שמפעילה את כולם, ולא בטעינה לכל מסך.
+      const locked = !LOADED && s.id !== 'load';
+      nav.appendChild(EL('button', {
+        class: 'subtab', role: 'tab', 'aria-selected': String(s.id === screen.id),
+        disabled: locked ? 'disabled' : null,
+        title: locked ? 'יהיה זמין מיד אחרי טעינת הקובץ' : null,
+        text: s.he, onclick: () => { if (!locked) go('spend', s.id); }
+      }));
+    });
     view.appendChild(nav);
 
     const head = EL('div', { class: 'spend-head' });
-    head.innerHTML = `<h2>${esc(screen.full)}</h2><p>${esc(screen.desc)}</p>`;
+    head.innerHTML = LOADED
+      ? `<h2>${esc(screen.full)}</h2><p>${esc(screen.desc)}</p>`
+      : `<h2>טעינת קובץ הרכש</h2><p>טעינה אחת כאן מפעילה את כל מסכי SPEND —
+         הוצאות לפי ספק, לפי מק״ט, לפי סוג ספק ויעדי מו״מ. אין צורך לטעון שוב בכל מסך.</p>`;
     view.appendChild(head);
 
     const bar = EL('div');

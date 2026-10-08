@@ -27,6 +27,7 @@ const TRACK_FIELDS = ['owner', 'status', 'note', 'approved', 'realized'];
 function metaOf(ds) {
   if (!ds?.meta) return null;
   const d = ds.dims || {};
+  const c = ds.counts || {};
   return {
     rows: ds.meta.rows,
     builtAt: ds.meta.builtAt,
@@ -34,9 +35,9 @@ function metaOf(ds) {
     epoch: ds.meta.epoch,
     minDate: ds.meta.minDate,
     maxDate: ds.meta.maxDate,
-    suppliers: d.sup?.length ?? 0,
-    items: d.item?.length ?? 0,
-    orders: d.po?.length ?? 0
+    suppliers: d.sup?.length ?? c.sup ?? 0,
+    items: d.item?.length ?? c.item ?? 0,
+    orders: d.po?.length ?? c.po ?? 0
   };
 }
 
@@ -115,7 +116,9 @@ ${packed}
   return { answer: text, provider: cfg.prov, model: cfg.model, fallbackFrom };
 }
 
-/* הדפדפן שולח את המערך דחוס כדי לא להתקרב לתקרת גוף הבקשה. */
+/* הדפדפן שולח את המערך דחוס כדי לא להתקרב לתקרת גוף הבקשה.
+   הדחוס מגיע כ-base64 בתוך JSON רגיל ולא כגוף בינארי: גוף בינארי מתפרש
+   אחרת בין סביבות ריצה, ותקלה כזו נראית למשתמש כ"השמירה נכשלה" בלי סיבה. */
 function readBody(req) {
   if (req.headers['x-spend-gzip']) {
     const raw = Buffer.isBuffer(req.body) ? req.body
@@ -124,6 +127,15 @@ function readBody(req) {
     return JSON.parse(gunzipSync(raw).toString('utf8'));
   }
   return typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+}
+
+/* מחזיר את המערך עצמו ואת הבייטים הדחוסים לשמירה, בלי לדחוס פעמיים */
+function datasetOf(body) {
+  if (body && typeof body.gzb64 === 'string' && body.gzb64.length) {
+    const buf = Buffer.from(body.gzb64, 'base64');
+    return { ds: JSON.parse(gunzipSync(buf).toString('utf8')), gzb64: body.gzb64 };
+  }
+  return { ds: body, gzb64: null };
 }
 
 export default async function handler(req, res) {
@@ -139,6 +151,14 @@ export default async function handler(req, res) {
       const ds = await kvGet(DATA);
       if (!ds) return res.status(200).json({ empty: true });
       if (req.query.meta) return res.status(200).json({ empty: false, meta: metaOf(ds) });
+      // נשמר דחוס: אין צורך לפרוס ולדחוס מחדש, הבייטים נשלחים כמו שהם
+      if (ds.gz) {
+        const buf = Buffer.from(ds.gz, 'base64');
+        res.setHeader('content-type', 'application/json; charset=utf-8');
+        res.setHeader('content-encoding', 'gzip');
+        res.setHeader('content-length', String(buf.length));
+        return res.end(buf);
+      }
       return sendGz(res, ds);
     }
 
@@ -168,10 +188,19 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'PUT') {
-      const bad = validate(body);
+      const { ds, gzb64 } = datasetOf(body);
+      const bad = validate(ds);
       if (bad) return res.status(400).json({ error: bad });
-      await kvSet(DATA, body);
-      return res.status(200).json({ ok: true, meta: metaOf(body) });
+      // נשמר דחוס. מערך של 42 אלף שורות הוא כ-3.2MB כ-JSON, וכתיבה של
+      // jsonb בגודל כזה לוקחת שניות ארוכות ולעיתים נגמרת בפסק זמן של
+      // הפונקציה — ואז המשתמש רואה "נכשל" בלי לדעת למה. דחוס זה כ-860KB.
+      const gz = gzb64 || gzipSync(Buffer.from(JSON.stringify(ds), 'utf8'), { level: 6 }).toString('base64');
+      await kvSet(DATA, {
+        gz,
+        meta: ds.meta,
+        counts: { sup: ds.dims?.sup?.length || 0, item: ds.dims?.item?.length || 0, po: ds.dims?.po?.length || 0 }
+      });
+      return res.status(200).json({ ok: true, stored: gz.length, meta: metaOf(ds) });
     }
 
     if (req.method === 'DELETE' && req.query.track) {

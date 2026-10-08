@@ -317,19 +317,23 @@ export function ingest(rowsIn, map, fileName) {
 /* מערך של 42 אלף שורות שוקל כ-3.5MB כ-JSON, קרוב לתקרת גוף הבקשה של
    פונקציה בודדת. דוחסים בדפדפן ושולחים כ-650KB; השרת פורס. אם הדפדפן
    אינו תומך בדחיסה, נשלח כרגיל. */
+/* המערך נשלח דחוס ומקודד base64 בתוך JSON רגיל. גוף בינארי מתפרש אחרת
+   בין סביבות ריצה, ותקלה כזו נראית למשתמש כ"השמירה נכשלה" בלי סיבה. */
 async function putDataset(payload) {
   const json = JSON.stringify(payload);
   if (typeof CompressionStream === 'function') {
     try {
       const gz = new Blob([json]).stream().pipeThrough(new CompressionStream('gzip'));
-      const buf = await new Response(gz).arrayBuffer();
+      const bytes = new Uint8Array(await new Response(gz).arrayBuffer());
+      let bin = '';
+      for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
       const r = await fetch('/api/spend', {
-        method: 'PUT',
-        headers: { 'content-type': 'application/octet-stream', 'x-spend-gzip': '1' },
-        body: buf
+        method: 'PUT', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ gzb64: btoa(bin) })
       });
       const body = await r.json().catch(() => ({}));
-      return { ok: r.ok, status: r.status, body };
+      // שגיאת שרת שאינה בעיית תוכן — ננסה שוב בשליחה רגילה, לא דחוסה
+      if (r.ok || r.status === 400) return { ok: r.ok, status: r.status, body };
     } catch { /* נופלים לשליחה רגילה */ }
   }
   const r = await fetch('/api/spend', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: json });
@@ -469,7 +473,12 @@ export function viewLoad(root, idx, ctx) {
         const prevSrc = loaded ? (M.meta.sourceFile || '—') : null;
         const r = await putDataset(res.payload);
         go.disabled = false; go.textContent = 'קלוט ושמור בשרת';
-        if (!r.ok) { step.appendChild(EL('p', { class: 'banner warn', text: 'השמירה בשרת נכשלה: ' + esc(r.body?.error || r.status) })); return; }
+        if (!r.ok) {
+          step.appendChild(EL('p', { class: 'banner warn',
+            text: `השמירה בשרת נכשלה (${r.status || 'אין תשובה'}): ${r.body?.error || 'לא התקבל הסבר מהשרת'}. `
+              + 'הנתונים עדיין בדפדפן — אפשר ללחוץ שוב על הכפתור. אם זה חוזר, צלם את ההודעה הזו.' }));
+          return;
+        }
         clearCache();
         buildModel(res.payload);
         clearAnalyticsCache();
