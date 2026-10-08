@@ -26,5 +26,16 @@
       "path": "/api/cron/scan",
       "schedule": "35 4 * * *"
     }
+  ],
+  "headers": [
+    {
+      "source": "/login.html",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, must-revalidate"
+        }
+      ]
+    }
   ]
 }

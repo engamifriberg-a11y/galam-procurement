@@ -130,6 +130,13 @@ $('#f').onsubmit = async e => {
   $('#pass').select();
 };
 
+// אם ההגנה כבויה בשרת, המסך הזה מיותר — ולרוב הוא מגיע מהמטמון של הדפדפן.
+// במקום להשאיר את המשתמש מול טופס שאי אפשר להיכנס דרכו, עוברים לאתר.
+fetch('/api/login', { cache: 'no-store' })
+  .then(r => r.json())
+  .then(b => { if (b && b.protected === false) location.replace(target()); })
+  .catch(() => {});
+
 $('#user').focus();
 </script>
 </body>
