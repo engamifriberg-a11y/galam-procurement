@@ -99,7 +99,7 @@ registerTab({
     if (active === 'freight') {
       wireLanes(host, rerender);
       wireUpload(host, {
-        id: 'freight', endpoint: '/api/series-bulk',
+        id: 'freight', endpoint: '/api/ops?task=series',
         mapRow: row => {
           const id = pick(row, 'מזהה סדרה', 'series', 'id');
           const value = pickNum(row, 'ערך', 'value', 'מחיר');

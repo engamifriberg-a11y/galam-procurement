@@ -78,7 +78,8 @@ globalThis.fetch = async (url) => {
     : u.startsWith('/assets/data/lanes.json') ? JSON.parse(await readFile(join(ROOT, 'assets/data/lanes.json'), 'utf8'))
     : u.startsWith('/api/settings') ? { protected: false, saved: {}, search: { engine: 'Google News RSS', source: 'ברירת מחדל' }, active: { provider: 'nvidia', model: 'openai/gpt-oss-20b', search: false, source: 'סביבה' }, env: { tavily: false, nvidia: true, gemini: false, anthropic: false } }
     : u.includes('task=quote') ? { group: 'freight', asked: 8, quotes: [] }
-    : u.startsWith('/api/analysis') ? { window: 'd90', series: API_MARKET.series, rows: [], modes: {} }
+    : u.startsWith('/api/login') ? { protected: true, user: 'tester' }
+    : u.startsWith('/api/ops') ? { window: 'd90', series: API_MARKET.series, rows: [], modes: {} }
     : u.startsWith('/api/ai') ? (AI_OK ? AI_PAYLOAD : { error: 'no_ai_key', message: 'test' })
     : JSON.parse(await readFile(join(ROOT, u.replace(/^\//, '')), 'utf8'));
   const aiFail = u.startsWith('/api/ai') && !AI_OK && !u.includes('task=brief') && !u.includes('task=pitch');

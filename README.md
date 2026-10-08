@@ -31,7 +31,7 @@ assets/js/tabs/<tab>/index.js   מודול לשונית — נרשם ב-register
 assets/data/series.json         קטלוג הסדרות והמקורות
 assets/data/chemicals.json      21 הכימיקלים + מנועי העלות שלהם
 api/market.js                   קריאה והזנה של סדרות
-api/analysis.js                 מקור האמת להמלצות
+api/ops.js                      ניתוח, מילוי היסטוריה והזנת סדרות מקובץ
 api/_lib/market.js              חישוב סדרות, שינויים ותנודתיות
 api/_lib/analysis.js            מנוע ההמלצות
 api/_lib/scan.js                גרעין ה-AI, משותף לנתיב ולמשימת הרקע

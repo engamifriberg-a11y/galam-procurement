@@ -13,7 +13,7 @@
     "api/cron/scan.js": {
       "maxDuration": 60
     },
-    "api/backfill.js": {
+    "api/ops.js": {
       "maxDuration": 120
     }
   },
