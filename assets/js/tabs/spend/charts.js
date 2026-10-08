@@ -6,18 +6,39 @@
 
 import { moneyC, money, price, num } from './model.js';
 
-const CDN = 'https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.1/echarts.min.js';
+// שלושה מקורות ולא אחד. הגרסה שהייתה כאן קודם, 5.5.1, פשוט אינה קיימת
+// ב-cdnjs (יש 5.5.0 ו-5.5.1-rc בלבד), ולכן כל גרף במסך נשאר עם חיווי
+// טעינה בלי שום הודעת שגיאה. כתובת אחת שבורה לא תשתק שוב את כל המסכים.
+const CDNS = [
+  'https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js',
+  'https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js',
+  'https://unpkg.com/echarts@5.5.0/dist/echarts.min.js'
+];
 let loading = null;
+
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const el = document.createElement('script');
+    el.src = src;
+    el.async = true;
+    el.onload = () => resolve();
+    el.onerror = () => reject(new Error(src));
+    document.head.appendChild(el);
+  });
+}
 
 export function loadECharts() {
   if (window.echarts) return Promise.resolve(window.echarts);
-  loading ||= new Promise((resolve, reject) => {
-    const el = document.createElement('script');
-    el.src = CDN;
-    el.onload = () => window.echarts ? resolve(window.echarts) : reject(new Error('ספריית הגרפים נטענה אך אינה זמינה'));
-    el.onerror = () => reject(new Error('טעינת ספריית הגרפים נכשלה'));
-    document.head.appendChild(el);
-  });
+  loading ||= (async () => {
+    for (const src of CDNS) {
+      try {
+        await loadScript(src);
+        if (window.echarts) return window.echarts;
+      } catch { /* המקור הבא */ }
+    }
+    loading = null;   // כישלון אינו סופי: ריענון או מסך אחר ינסו שוב
+    throw new Error('טעינת ספריית הגרפים נכשלה מכל המקורות');
+  })();
   return loading;
 }
 

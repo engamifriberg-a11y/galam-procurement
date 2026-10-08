@@ -407,7 +407,7 @@ else {
       ? fail('SPEND בלי נתונים: מוצג פאנל נתונים ריק') : pass('SPEND בלי נתונים: בלי פאנל נתונים ריק');
     SPEND_EMPTY = false;
 
-    const SCREENS = ['macro', 'portfolio', 'vendors', 'actions', 'load'];
+    const SCREENS = ['macro', 'portfolio', 'vendors', 'years', 'actions', 'load'];
     let rendered = 0;
     for (const id of SCREENS) {
       const v = new El('#view');
@@ -421,6 +421,32 @@ else {
       } catch (e) { fail(`SPEND · ${id}: ${e.message}`); }
     }
     rendered === SCREENS.length ? pass(`כל ${SCREENS.length} מסכי SPEND נבנו`) : fail('לא כל מסכי SPEND נבנו');
+
+    // ספריית הגרפים: שלושה מקורות, וכישלון רועש. הגרסה שהייתה כאן קודם
+    // (5.5.1) אינה קיימת ב-cdnjs, וכל הגרפים נשארו בחיווי טעינה בשקט.
+    {
+      // עותק טרי של המודול: המסכים שרונדרו קודם כבר הפעילו את הטוען,
+      // והבטחה שלא נפתרה בסטאב הייתה תוקעת את הבדיקה
+      const ch = await import('../assets/js/tabs/spend/charts.js?fresh=1');
+      const tried = [];
+      const orig = globalThis.document.createElement;
+      globalThis.document.createElement = t => {
+        const el = orig(t);
+        if (t === 'script') Object.defineProperty(el, 'src', {
+          configurable: true,
+          set(v) { tried.push(v); setTimeout(() => el.onerror && el.onerror(), 0); },
+          get() { return ''; }
+        });
+        return el;
+      };
+      let threw = false;
+      try { await ch.loadECharts(); } catch { threw = true; }
+      globalThis.document.createElement = orig;
+      tried.length >= 3 ? pass(`גרפים: ${tried.length} מקורות חלופיים`) : fail('גרפים: אין מקור חלופי — כתובת שבורה תשתק את כל המסכים');
+      threw ? pass('גרפים: כישלון טעינה מדווח ולא נבלע') : fail('גרפים: כישלון טעינה נבלע בשקט');
+      tried.every(u => /echarts/.test(u) && !/5\.5\.1/.test(u))
+        ? pass('גרפים: הכתובות תקינות') : fail('גרפים: כתובת לא תקינה — ' + tried.join(' '));
+    }
 
     // המנוע: פער נספר רק בין רכישות של אותו חודש, אחרת ירידת מחיר בשוק
     // לאורך השנה הייתה נספרת כחיסכון שלא קיים.

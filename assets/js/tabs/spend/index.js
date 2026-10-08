@@ -17,6 +17,7 @@ import { disposeCharts, resizeCharts } from './charts.js';
 import { viewMacro } from './views-macro.js';
 import { viewPortfolio } from './views-portfolio.js';
 import { viewVendors } from './views-vendors.js';
+import { viewYears } from './views-years.js';
 import { viewActions } from './views-actions.js';
 import { viewLoad } from './views-system.js';
 
@@ -27,6 +28,8 @@ const SCREENS = [
     desc: 'איך בנוי התיק: סיווג ABC, ריכוזיות התקציב, וכסף מול תנודתיות מחיר — איפה שווה להשקיע זמן ניהולי.' },
   { id: 'vendors', he: 'ספקים ומחזורים', full: 'ספקים ומחזורים', render: viewVendors,
     desc: 'מצבת הספקים: מחזורים, מדד ריכוזיות, פילוח לפי סוג הזמנה וסוג ספק, ותלות בספק בודד.' },
+  { id: 'years', he: 'השוואת שנים', full: 'השוואת שנים', render: viewYears,
+    desc: 'שנה מול שנה עם חיתוך הוגן כששנה חלקית, פירוק השינוי למחיר מול כמות, ומי עלה ומי ירד.' },
   { id: 'actions', he: 'הזדמנויות והמלצות', full: 'הזדמנויות והמלצות', render: viewActions,
     desc: 'רשימת עבודה: מכרזים, איחוד ספקים, מו״מ ופערי מחיר — כל אחת עם המספרים שמאחוריה.' },
   { id: 'load', he: 'טעינת נתונים', full: 'טעינת נתונים', render: viewLoad,
