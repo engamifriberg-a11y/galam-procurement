@@ -376,6 +376,20 @@ export function viewLoad(root, idx, ctx) {
       ? 'XLSX או CSV · הקובץ נקרא בדפדפן, ורק התוצאה הדחוסה נשמרת בשרת'
       : 'גרור לכאן את הקובץ, או בחר אותו מהמחשב. XLSX או CSV · הקובץ נקרא בדפדפן, '
         + 'תבחר את הגיליון ותאשר את מיפוי העמודות, ומיד אחר כך כל המסכים נפתחים עם הנתונים שלך');
+  // מצב המסד עצמו, ולא מה שיש בזיכרון הדפדפן. בלי השורה הזו "טענתי ולא
+  // קרה כלום" הוא ניחוש: עכשיו רואים שחור על גבי לבן אם השמירה נחתה.
+  const srv = EL('p', { class: 'note', html: '<span class="spin"></span> בודק מה שמור בשרת…' });
+  up.appendChild(srv);
+  fetch('/api/spend?meta=1', { cache: 'no-store' })
+    .then(r => r.json())
+    .then(b => {
+      srv.innerHTML = b && b.meta
+        ? `<b>שמור בשרת:</b> ${num(b.meta.rows)} שורות · ${esc(b.meta.sourceFile || '')} · `
+          + `${num(b.meta.suppliers)} ספקים · ${num(b.meta.items)} מק״טים · נקלט ${esc(String(b.meta.builtAt || '').replace('T', ' '))}`
+        : '<b>אין עדיין נתונים בשרת.</b> הקובץ שתעלה כאן יישמר במסד, וכל המסכים ייפתחו מיד אחר כך.';
+    })
+    .catch(() => { srv.textContent = 'לא הצלחתי לבדוק מה שמור בשרת.'; });
+
   const drop = EL('div', { class: 'dropzone' });
   drop.innerHTML = '<b>גרור לכאן קובץ אקסל</b><span>או</span>';
   const fi = EL('input', { type: 'file', accept: '.xlsx,.xlsm,.xls,.csv', hidden: 'hidden' });
