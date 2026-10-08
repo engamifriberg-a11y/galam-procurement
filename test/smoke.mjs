@@ -407,7 +407,7 @@ else {
       ? fail('SPEND בלי נתונים: מוצג פאנל נתונים ריק') : pass('SPEND בלי נתונים: בלי פאנל נתונים ריק');
     SPEND_EMPTY = false;
 
-    const SCREENS = ['money', 'suppliers', 'items', 'years', 'ai', 'load'];
+    const SCREENS = ['suppliers', 'items', 'types', 'negotiate', 'ai', 'load'];
     let rendered = 0;
     for (const id of SCREENS) {
       const v = new El('#view');
@@ -421,6 +421,24 @@ else {
       } catch (e) { fail(`SPEND · ${id}: ${e.message}`); }
     }
     rendered === SCREENS.length ? pass(`כל ${SCREENS.length} מסכי SPEND נבנו`) : fail('לא כל מסכי SPEND נבנו');
+
+    // יעדי המו״מ: פער נספר רק בין רכישות של אותו חודש, אחרת ירידת מחיר
+    // בשוק לאורך השנה הייתה נספרת כחיסכון שלא קיים.
+    {
+      const neg = await import('../assets/js/tabs/spend/views-negotiate.js');
+      const m = await import('../assets/js/tabs/spend/model.js');
+      const all = m.ALL();
+      const T = neg.targets(all, null);
+      const byItem = new Map(T.map(r => [r.item, r]));
+      // IT-100 בפיקסצ'ר נקנה פעמיים באותו יום במחירים שונים
+      const t1 = byItem.get('IT-100');
+      t1 ? pass('יעדי מו״מ: מק״ט מזוהה ומדורג') : fail('יעדי מו״מ: לא נוצר יעד');
+      T.every(r => r.saving >= 0) ? pass('יעדי מו״מ: אין פער שלילי') : fail('יעדי מו״מ: התקבל פער שלילי');
+      T.every(r => !r.meas ? r.saving === 0 : true)
+        ? pass('יעדי מו״מ: פריט ביחידה לא מדידה אינו מייצר פער') : fail('יעדי מו״מ: פער חושב על יחידה לא מדידה');
+      T.every(r => r.spread == null || r.best == null || r.paidMo >= r.best)
+        ? pass('יעדי מו״מ: המחיר ששולם אינו נמוך מהטוב ביותר באותו חודש') : fail('יעדי מו״מ: המחירים לא עקביים');
+    }
 
     // טעינה אחת, שני מאגרים: גיליון כרטיסי הספקים שבאותו קובץ
     {

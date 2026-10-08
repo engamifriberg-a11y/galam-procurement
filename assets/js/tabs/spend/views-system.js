@@ -498,7 +498,7 @@ export function viewLoad(root, idx, ctx) {
         }
         rep.appendChild(EL('p', { class: 'banner', text: 'כל הניתוחים חושבו מחדש. אם הקובץ הוא צילום מצב של הזמנות פתוחות בלבד — המערכת מתייחסת לכל שורה כשורת הזמנה, ולכן טעינה כזו מחליפה את התמונה המלאה ואינה מתווספת אליה.' }));
         toast('נקלטו ' + num(M.N) + ' שורות');
-        setTimeout(() => ctx.go('money'), 700);
+        setTimeout(() => ctx.go('suppliers'), 700);
       } });
       act.append(go, EL('button', { class: 'btn', text: 'בטל', onclick: () => { out.innerHTML = ''; } }));
       mp.appendChild(act);

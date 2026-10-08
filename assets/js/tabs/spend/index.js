@@ -14,20 +14,21 @@ import {
 } from './model.js';
 import { EL, closeDrawer } from './ui.js';
 import { disposeCharts, resizeCharts } from './charts.js';
-import { viewMoney } from './views-overview.js';
-import { viewSuppliers, viewItems } from './views-parties.js';
-import { viewYears } from './views-years.js';
+import { viewSuppliers } from './views-suppliers.js';
+import { viewItems } from './views-items.js';
+import { viewTypes } from './views-types.js';
+import { viewNegotiate } from './views-negotiate.js';
 import { viewAdvisor, viewLoad } from './views-system.js';
 
 const SCREENS = [
-  { id: 'money', he: 'איפה הכסף', full: 'איפה הכסף', render: viewMoney,
-    desc: 'סך הרכש בשנה שנבחרה, מול השנה הקודמת, ומי ומה מחזיקים את הכסף. לחיצה על כל עמודה פותחת את הכרטיס המלא.' },
-  { id: 'suppliers', he: 'מחזור ספקים', full: 'מחזור ספקים', render: viewSuppliers,
-    desc: 'המחזור של כל ספק, מול התקופה המקבילה אשתקד, חלקו בסך הרכש ומצטבר. לחיצה על שורה פותחת כרטיס ספק.' },
-  { id: 'items', he: 'מק״טים', full: 'מק״טים — כמות ועלות', render: viewItems,
-    desc: 'כמה יחידות צרכנו מכל מק״ט, כמה זה עלה, מה המחיר הממוצע ואיך הוא זז. לחיצה על שורה פותחת כרטיס מק״ט.' },
-  { id: 'years', he: 'השוואת שנים', full: 'השוואת שנים', render: viewYears,
-    desc: 'שנה מול שנה, עם חיתוך הוגן כששנה חלקית, ופירוק השינוי למחיר מול כמות.' },
+  { id: 'suppliers', he: 'הוצאות לפי ספק', full: 'הוצאות לפי ספק', render: viewSuppliers,
+    desc: 'אצל מי הכסף יושב: חלוקת ההוצאה בין הספקים, מי גדל ומי קטן מול אשתקד, ועקומת פארטו. לחיצה פותחת כרטיס ספק.' },
+  { id: 'items', he: 'הוצאות לפי מק״ט', full: 'הוצאות לפי מק״ט', render: viewItems,
+    desc: 'על מה הכסף הולך: הוצאה לכל מק״ט, הכמות שנצרכה, המחיר הממוצע ואיך הוא זז. לחיצה פותחת כרטיס מק״ט.' },
+  { id: 'types', he: 'לפי סוג ספק', full: 'ניתוח לפי סוג ספק', render: viewTypes,
+    desc: 'באיזו פעילות הכסף יושב — חומרי גלם, אנרגיה, אריזות, אחזקה, הובלות. בחירת סוג פותחת את הספקים והמק״טים שבתוכו.' },
+  { id: 'negotiate', he: 'יעדי מו״מ', full: 'יעדי משא ומתן', render: viewNegotiate,
+    desc: 'המק״טים היקרים והנצרכים ביותר, מדורגים לפי כדאיות מו״מ, עם פוטנציאל החיסכון והנימוק לכל אחד.' },
   { id: 'ai', he: 'יועץ AI', full: 'יועץ רכש', render: viewAdvisor,
     desc: 'שאלות בעברית חופשית על הנתונים. התשובות מחושבות מההזמנות שבסינון הנוכחי, לא מידע כללי.' },
   { id: 'load', he: 'טעינת נתונים', full: 'טעינת נתונים', render: viewLoad,
